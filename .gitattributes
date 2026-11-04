@@ -1,0 +1,5 @@
+# Giữ LF để build pack deterministic trên mọi máy (zip hash không đổi theo checkout).
+* text=auto eol=lf
+*.png binary
+*.ttf binary
+*.zip binary

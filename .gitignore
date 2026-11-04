@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# transient build outputs
+resourcepack/dist/
+resourcepack/build/stage/
+resourcepack/build/placeholders/
+resourcepack/build/build_report.json
+resourcepack/build/gui_manifest.json
+resourcepack/build/validate_report.json
+resourcepack/build/preview_*.png
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
