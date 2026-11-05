@@ -72,7 +72,6 @@ ITEM_MODELS = [
 
 def _font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [
-        Path(__file__).resolve().parent / "fonts" / ("BeVietnamPro-Bold.ttf" if bold else "BeVietnamPro-Regular.ttf"),
         Path("work/nn4_font_probe/BeVietnamPro-Bold.ttf" if bold else "work/nn4_font_probe/BeVietnamPro-Regular.ttf"),
     ]
     here = Path(__file__).resolve().parents[2]

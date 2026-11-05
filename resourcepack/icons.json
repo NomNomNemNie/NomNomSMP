@@ -1,11 +1,12 @@
 {
-  "schema": "nomnom-ui-icons/1",
+  "schema": "nomnom-ui-icons/2",
   "font": "nomnom:ui",
-  "range": "U+E000..U+E02F",
+  "range": "U+E000..U+E035",
   "master_size": "16x16",
   "render_size_px": 9,
   "provider": { "height": 9, "ascent": 9 },
-  "note": "White fill + 1px black outline, binary alpha. confirm/cancel are aliases of check/cross and do not consume extra code points.",
+  "base_manifest": "work/nn4-icons.json",
+  "note": "Bản mở rộng đợt 5. 48 icon đầu (U+E000..U+E02F) GIỮ NGUYÊN codepoint/id/ascii so với work/nn4-icons.json (HUD config và suite đang khóa dải này); 6 icon mới thêm liên tiếp U+E030..U+E035. confirm/cancel vẫn là alias của check/cross, không tốn codepoint. Glyph vẽ lại toàn bộ theo phong cách NomNom (fill trắng + viền đen 1px, binary alpha) nhưng hợp đồng kỹ thuật không đổi: ink 13x14 tại (1,1), cột 15 trống => advance 9.",
   "aliases": {
     "confirm": "check",
     "cancel": "cross"
@@ -30,7 +31,7 @@
     { "id": "spawn",       "cp": "U+E010", "desc": "Beacon tỏa sáng", "ascii": "SP", "label": "Spawn" },
     { "id": "rp",          "cp": "U+E011", "desc": "La bàn bốn hướng", "ascii": "R",  "label": "Wild TP" },
     { "id": "mail",        "cp": "U+E012", "desc": "Phong bì thư", "ascii": "@",  "label": "Mail" },
-    { "id": "ally",        "cp": "U+E013", "desc": "Hai bàn tay bắt nhau", "ascii": "AL", "label": "Ally" },
+    { "id": "ally",        "cp": "U+E013", "desc": "Hai vòng liên minh móc nhau", "ascii": "AL", "label": "Ally" },
     { "id": "kill",        "cp": "U+E014", "desc": "Đầu lâu", "ascii": "K",  "label": "Kill" },
     { "id": "back",        "cp": "U+E015", "desc": "Mũi tên cong quay lui", "ascii": "<",  "label": "Back" },
     { "id": "bag",         "cp": "U+E016", "desc": "Ba lô", "ascii": "B",  "label": "Bag" },
@@ -58,6 +59,12 @@
     { "id": "tier2",       "cp": "U+E02C", "desc": "Huy hiệu hạng II", "ascii": "2",  "label": "Tier 2" },
     { "id": "tier3",       "cp": "U+E02D", "desc": "Huy hiệu hạng III", "ascii": "3",  "label": "Tier 3" },
     { "id": "tier4",       "cp": "U+E02E", "desc": "Huy hiệu hạng IV", "ascii": "4",  "label": "Tier 4" },
-    { "id": "tier5",       "cp": "U+E02F", "desc": "Huy hiệu hạng V kèm vương miện", "ascii": "5",  "label": "Tier 5" }
+    { "id": "tier5",       "cp": "U+E02F", "desc": "Huy hiệu hạng V kèm vương miện", "ascii": "5",  "label": "Tier 5" },
+    { "id": "book",        "cp": "U+E030", "desc": "Quyển sổ tay mở (nomnom book)", "ascii": "B",  "label": "Book" },
+    { "id": "sell",        "cp": "U+E031", "desc": "Thẻ giá kèm mũi tên ra (bán)", "ascii": "S",  "label": "Sell" },
+    { "id": "friendly",    "cp": "U+E032", "desc": "Trái tim kèm hai kiếm gác (đấu tập)", "ascii": "F",  "label": "Friendly" },
+    { "id": "shop",        "cp": "U+E033", "desc": "Cửa hàng mái sạp kèm cửa", "ascii": "P",  "label": "Shop" },
+    { "id": "chat-tag",    "cp": "U+E034", "desc": "Bong bóng chat kèm sao (tag)", "ascii": "C",  "label": "Chat tag" },
+    { "id": "worldtime",   "cp": "U+E035", "desc": "Mặt trời quỹ đạo kèm kim giờ", "ascii": "W",  "label": "World time" }
   ]
 }

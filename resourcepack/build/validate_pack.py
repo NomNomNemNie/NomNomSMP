@@ -23,7 +23,7 @@ PROJECT = Path(__file__).resolve().parents[2]
 DEFAULT_WEAPONS = PROJECT / "downloads" / "weapons_rp.zip"
 EXPECTED_FORMAT = 75  # 1.21.11 resource pack (94 là data pack)
 
-REQUIRED = [
+REQUIRED_MAIN = [
     "pack.mcmeta",
     "pack.png",
     "README.md",
@@ -31,11 +31,24 @@ REQUIRED = [
     "LICENSE-OFL.txt",
     "assets/nomnom/font/ui.json",
     "assets/nomnom/textures/font/icons.png",
+    "assets/nomnom/textures/font/vi_text.png",
 ]
+REQUIRED_HUD = [
+    "pack.mcmeta",
+    "pack.png",
+    "README.md",
+    "ATTRIBUTION.md",
+    "LICENSE-OFL.txt",
+    "assets/nomnom/font/ui.json",
+    "assets/nomnom/font/hud.json",
+    "assets/nomnom/textures/font/icons.png",
+    "assets/nomnom/textures/font/hud.png",
+]
+REQUIRED = REQUIRED_MAIN  # đổi theo --preset trong main()
 
 ALLOWED_ROOT = {
     "pack.mcmeta", "pack.png", "README.md", "ATTRIBUTION.md",
-    "LICENSE-OFL.txt", "PLACEHOLDERS.txt",
+    "LICENSE-OFL.txt", "PLACEHOLDERS.txt", "HUD-INFO.txt",
 }
 
 JUNK_PARTS = {
@@ -69,7 +82,8 @@ class Result:
         return not self.errors
 
 
-def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result) -> None:
+def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result,
+             preset: str = "main") -> None:
     if not zip_path.is_file():
         res.err(f"không thấy zip: {zip_path}")
         return
@@ -172,8 +186,9 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result)
             if name in dims and dims[name] != (w, h):
                 res.err(f"{name} có kích thước {dims[name]}, cần {(w, h)}")
 
-        expect_dim("assets/nomnom/textures/font/icons.png", 128, 96)
-        expect_dim("assets/nomnom/textures/font/vi_text.png", 256, 400)
+        expect_dim("assets/nomnom/textures/font/icons.png", 128, 112)
+        expect_dim("assets/nomnom/textures/font/vi_text.png", 256, 500)
+        expect_dim("assets/nomnom/textures/font/hud.png", 128, 80)
         expect_dim("assets/nomnom/textures/gui/panel_primary.png", 48, 48)
         expect_dim("assets/nomnom/textures/gui/panel_inset.png", 48, 48)
         expect_dim("assets/nomnom/textures/gui/panel_raised.png", 48, 48)
@@ -205,6 +220,10 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result)
                 ref = prov.get("file", "")
                 asset = resolve_asset(ref)
                 if asset not in names:
+                    if preset == "hud" and asset == "assets/nomnom/textures/font/vi_text.png":
+                        # thiết kế A3: pack HUD tham chiếu CHÉO atlas text của pack chính
+                        res.info["hud_cross_pack_ref"] = asset
+                        continue
                     res.err(f"{n}: bitmap trỏ tới {asset} không có trong zip")
                     continue
                 rows = prov.get("chars", [])
@@ -239,11 +258,19 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result)
                     "range": f"U+{min(cps):04X}..U+{max(cps):04X}" if cps else None,
                 }
             if n == "assets/nomnom/font/ui.json" and has_bitmap:
-                if total != 48:
-                    res.err(f"{n}: cần 48 glyph icon, thấy {total}")
-                if cps and (min(cps) != 0xE000 or max(cps) != 0xE02F):
-                    res.err(f"{n}: dải PUA phải U+E000..U+E02F, thấy "
+                if len(cps) != 54:
+                    res.err(f"{n}: cần 54 glyph icon, thấy {len(cps)}")
+                if cps and (min(cps) != 0xE000 or max(cps) != 0xE035):
+                    res.err(f"{n}: dải PUA phải U+E000..U+E035 (48 cũ + 6 mới), thấy "
                             f"U+{min(cps):04X}..U+{max(cps):04X}")
+            if n == "assets/nomnom/font/hud.json" and has_bitmap:
+                if len(cps) != 28:
+                    res.err(f"{n}: cần 28 glyph HUD, thấy {len(cps)}")
+                if cps and (min(cps) != 0xE040 or max(cps) != 0xE05D):
+                    res.err(f"{n}: dải PUA HUD phải U+E040..U+E05D, thấy "
+                            f"U+{min(cps):04X}..U+{max(cps):04X}")
+                if prov.get("height") != 20 or prov.get("ascent") != 16:
+                    res.err(f"{n}: HUD font phải height=20 ascent=16 (khớp pack chính)")
             if n == "assets/minecraft/font/default.json":
                 ids = [p.get("id") for p in providers if p.get("type") == "reference"]
                 for needed in ("minecraft:include/space", "minecraft:include/default",
@@ -272,8 +299,19 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result)
                     res.err(f"{model_path}: layer0 {layer0} thiếu texture {tex}")
         res.info["item_definitions"] = len(item_defs)
 
-        # --- weapons merge
-        if weapons_zip.is_file():
+        # --- weapons merge (chỉ pack chính; pack HUD không chứa weapons)
+        if preset == "hud":
+            if any(n.startswith("assets/weapons/") for n in names):
+                res.err("pack HUD không được chứa assets/weapons/**")
+            if "assets/nomnom/textures/font/vi_text.png" in names:
+                res.err("pack HUD không được đóng gói font text (vi_text thuộc pack chính)")
+            hud_default = json.loads(z.read("assets/minecraft/font/default.json").decode("utf-8"))
+            hud_refs = [p.get("id") for p in hud_default["providers"] if p.get("type") == "reference"]
+            if "nomnom:hud" not in hud_refs:
+                res.err("default.json của pack HUD thiếu reference nomnom:hud")
+            if "nomnom:ui" not in hud_refs:
+                res.err("default.json của pack HUD thiếu reference nomnom:ui")
+        elif weapons_zip.is_file():
             with zipfile.ZipFile(weapons_zip) as wz:
                 expect = {i.filename for i in wz.infolist()
                           if not i.is_dir() and i.filename.startswith("assets/weapons/")}
@@ -295,31 +333,41 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result)
             if not any(n.startswith("assets/weapons/") for n in names):
                 res.err("pack không có assets/weapons/**")
 
-        # --- attribution nội dung
+        # --- attribution nội dung (theo preset: HUD không chứa weapons)
+        attr_needles = ("CC-BY-4.0", "4pmYLtZ9", "weapons-plus", "jfrost3712",
+                        "OFL", "Be Vietnam Pro")
+        readme_needles = ("CC-BY-4.0", "4pmYLtZ9", "weapons-plus")
+        if preset == "hud":
+            attr_needles = ("OFL", "Be Vietnam Pro", "NomNomUI-HUD", "nomnom:hud")
+            readme_needles = ("OFL", "Be Vietnam Pro", "NomNomUI-HUD")
         if "ATTRIBUTION.md" in names:
             text = z.read("ATTRIBUTION.md").decode("utf-8", errors="replace")
-            for needle in ("CC-BY-4.0", "4pmYLtZ9", "weapons-plus", "jfrost3712",
-                           "OFL", "Be Vietnam Pro"):
+            for needle in attr_needles:
                 if needle not in text:
                     res.err(f"ATTRIBUTION.md thiếu '{needle}'")
         if "README.md" in names:
             readme = z.read("README.md").decode("utf-8", errors="replace")
-            for needle in ("CC-BY-4.0", "4pmYLtZ9", "weapons-plus"):
+            for needle in readme_needles:
                 if needle not in readme:
                     res.err(f"README.md thiếu ghi công '{needle}'")
 
 
 def main() -> int:
+    global REQUIRED
     ap = argparse.ArgumentParser(description="Validate NomNom UI resource pack")
-    ap.add_argument("--zip", default="work/rp_build/dist/NomNomUI-v1.0.0.zip")
+    ap.add_argument("--zip", default="work/rp_build/dist/NomNomUI-v1.1.0.zip")
     ap.add_argument("--weapons", default=str(DEFAULT_WEAPONS))
     ap.add_argument("--expect-format", type=int, default=EXPECTED_FORMAT)
+    ap.add_argument("--preset", choices=("main", "hud"), default="main",
+                    help="main = NomNomUI đầy đủ; hud = NomNomUI-HUD (không weapons/vi_text)")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
 
+    REQUIRED = REQUIRED_HUD if args.preset == "hud" else REQUIRED_MAIN
+
     res = Result()
     try:
-        validate(Path(args.zip), Path(args.weapons), args.expect_format, res)
+        validate(Path(args.zip), Path(args.weapons), args.expect_format, res, preset=args.preset)
     except Exception as e:  # noqa: BLE001 - validator không được crash im lặng
         res.err(f"validator exception: {type(e).__name__}: {e}")
 

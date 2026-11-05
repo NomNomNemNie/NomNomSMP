@@ -39,7 +39,7 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 WORK = HERE.parent
-RP = HERE.parent  # resourcepack/ (repo layout)
+RP = HERE.parent if (HERE.parent / "assets").is_dir() else WORK / "rp_src"  # repo: resourcepack/, workspace: work/rp_src
 ASSETS = RP / "assets" / "nomnom"
 TEX = ASSETS / "textures"
 MODELS = ASSETS / "models" / "item" / "ui"
@@ -567,16 +567,18 @@ def tex_tier(n: int) -> Canvas:
 
 
 # ---------------------------------------------------------------------------
-# 32x32 menu icons
+# 32x32 menu icons (NN5: vẽ lại toàn bộ + 10 icon mới)
 # ---------------------------------------------------------------------------
 
 def icon_market() -> Canvas:
     c = Canvas(32, 32)
-    # awning rail + striped canopy
+    # awning rail + striped canopy (v2: sọc dày hơn, thêmhighlight gold-200)
     c.rect(3, 2, 26, 1, GOLD_600)
     c.rect(4, 3, 24, 6, GOLD_400)
     for x in range(8, 28, 8):
         c.rect(x, 3, 4, 6, RED_600)
+    for x in range(4, 28, 8):
+        c.rect(x, 3, 2, 2, GOLD_200)
     for i, x in enumerate(range(4, 28, 4)):
         col = GOLD_400 if i % 2 == 0 else RED_600
         c.rect(x, 9, 4, 1, col)
@@ -585,11 +587,13 @@ def icon_market() -> Canvas:
     c.rect(12, 9, 1, 3, GOLD_600)
     c.rect(13, 9, 3, 1, LIME_400)
     c.disc(12.5, 13, 2.4, RED_400)
+    c.disc(13, 12, 1.0, RED_300)
     c.disc(19.5, 12.5, 2.4, LIME_400)
     c.disc(23.5, 13, 2.0, GOLD_200)
-    # basket
+    # basket (v2: thân có vành sáng + nan dọc đậm)
     c.polygon([(7, 15), (24, 15), (22, 27), (9, 27)], GOLD_400)
     c.rect(6, 14, 20, 2, GOLD_600)
+    c.hline(7, 15, 18, GOLD_200)
     for y in range(18, 27, 3):
         c.hline(9, y, 13, GOLD_600)
     for x in range(11, 22, 4):
@@ -603,10 +607,11 @@ def icon_cash() -> Canvas:
     # note behind
     c.rect(3, 7, 22, 14, GOLD_600)
     c.frame(3, 7, 22, 14, GOLD_400)
-    # front note
+    # front note (v2: thêm khung trong + góc sáng)
     c.rect(6, 10, 22, 14, GOLD_200)
     c.frame(6, 10, 22, 14, GOLD_400)
     c.frame(7, 11, 20, 12, GOLD_600)
+    c.rect(7, 11, 2, 2, TEXT_100)
     # money circle
     c.disc(17, 17, 6.0, GOLD_400)
     c.disc(17, 17, 5.0, GOLD_200)
@@ -622,8 +627,9 @@ def icon_cash() -> Canvas:
 
 def icon_land() -> Canvas:
     c = Canvas(32, 32)
-    # isometric grass block
+    # isometric grass block (v2: đỉnh cỏ sáng hơn, thêm cột mốc vàng)
     c.polygon([(16, 7), (28, 13), (17, 19), (5, 13)], LIME_400)
+    c.polygon([(16, 7), (20, 9), (12, 12), (9, 11)], LIME_200)
     c.polygon([(5, 13), (17, 19), (17, 29), (5, 23)], GOLD_600)
     c.polygon([(28, 13), (17, 19), (17, 29), (28, 23)], INK_700)
     c.line(5, 13, 16, 19, LIME_600, 2)
@@ -647,24 +653,25 @@ def icon_casino() -> Canvas:
     c = Canvas(32, 32)
     die(c, 3, 4, [(3, 3), (9, 3), (3, 9), (9, 9)])
     die(c, 16, 15, [(3, 3), (9, 3), (6, 6), (3, 9), (9, 9)])
-    # sparkle
+    # sparkle (v2: chấm sáng 4 cánh)
     c.rect(26, 3, 1, 5, GOLD_200)
     c.rect(24, 5, 5, 1, GOLD_200)
+    c.set(26, 2, GOLD_200)
     c.outline8()
     return c
 
 
 def icon_mini() -> Canvas:
     c = Canvas(32, 32)
-    # body + grips
+    # body + grips (v2: thêm viền sáng trên thân)
     c.rect(7, 9, 18, 13, VIOLET_400)
     c.disc(9, 21, 5, VIOLET_400)
     c.disc(23, 21, 5, VIOLET_400)
-    # lower shading
     for y in range(18, 27):
         for x in range(32):
             if c.get(x, y)[3] and c.get(x, y) == VIOLET_400 and y >= 20:
                 c.set(x, y, VIOLET_600)
+    c.hline(8, 10, 16, VIOLET_200)
     # dpad
     c.rect(9, 14, 7, 2, INK_900)
     c.rect(11, 12, 2, 7, INK_900)
@@ -683,8 +690,9 @@ def icon_home() -> Canvas:
     # chimney behind the roof (tall enough to read above the ridge)
     c.rect(22, 1, 5, 12, RED_600)
     c.rect(21, 0, 7, 2, TEXT_500)
-    # roof
+    # roof (v2: chóp sáng gold-200)
     c.polygon([(16, 1), (31, 14), (1, 14)], GOLD_400)
+    c.polygon([(16, 1), (22, 6), (16, 8), (10, 6)], GOLD_200)
     c.line(2, 13, 16, 2, GOLD_600, 1)
     c.line(30, 13, 16, 2, GOLD_600, 1)
     # walls
@@ -697,6 +705,27 @@ def icon_home() -> Canvas:
     c.frame(7, 17, 5, 5, INK_950)
     c.vline(9, 17, 5, INK_950)
     c.hline(7, 19, 5, INK_950)
+    c.outline8()
+    return c
+
+
+def icon_sethome() -> Canvas:
+    """NN5 mới: ngôi nhà + huy hiệu dấu cộng vàng góc phải dưới."""
+    c = Canvas(32, 32)
+    # house (nhỏ hơn icon home, dịch trái-lên)
+    c.polygon([(13, 2), (25, 12), (1, 12)], GOLD_400)
+    c.polygon([(13, 2), (18, 6), (13, 9), (8, 6)], GOLD_200)
+    c.rect(4, 12, 18, 12, GOLD_600)
+    c.hline(4, 12, 18, GOLD_400)
+    c.rect(9, 16, 5, 8, INK_900)
+    c.rect(5, 14, 4, 4, AQUA_400)
+    c.frame(5, 14, 4, 4, INK_950)
+    # plus badge (góc phải dưới: đĩa ink + cộng gold-200)
+    c.disc(24.5, 24.5, 7.0, INK_950)
+    c.disc(24.5, 24.5, 6.0, GOLD_400)
+    c.disc(24.5, 24.5, 5.0, INK_900)
+    c.rect(19, 23, 11, 3, GOLD_200)
+    c.rect(23, 19, 3, 11, GOLD_200)
     c.outline8()
     return c
 
@@ -720,6 +749,198 @@ def icon_spawn() -> Canvas:
     return c
 
 
+def icon_rp() -> Canvas:
+    """NN5 mới: la bàn vàng-khói, kim hai màu bắc nam."""
+    c = Canvas(32, 32)
+    # vành ngoài
+    c.disc(16, 16, 13.5, INK_950)
+    c.disc(16, 16, 12.5, GOLD_400)
+    c.disc(16, 16, 10.5, INK_900)
+    c.disc(16, 16, 9.5, INK_800)
+    # vạch hướng (N/E/S/W)
+    c.rect(15, 4, 2, 3, TEXT_500)
+    c.rect(15, 25, 2, 3, TEXT_500)
+    c.rect(4, 15, 3, 2, TEXT_500)
+    c.rect(25, 15, 3, 2, TEXT_500)
+    # kim: nửa bắc gold-200, nửa nam text-500
+    c.polygon([(16, 6), (19, 16), (16, 16)], GOLD_200)
+    c.polygon([(16, 6), (13, 16), (16, 16)], TEXT_100)
+    c.polygon([(16, 26), (19, 16), (16, 16)], TEXT_500)
+    c.polygon([(16, 26), (13, 16), (16, 16)], TEXT_700)
+    # chốt
+    c.disc(16, 16, 2.0, GOLD_400)
+    c.disc(16, 16, 1.0, GOLD_200)
+    c.outline8()
+    return c
+
+
+def icon_book() -> Canvas:
+    """NN5 mới: quyển sổ mở, trang trắng kèm dòng chữ, bìa nâu-vàng."""
+    c = Canvas(32, 32)
+    # bìa dưới
+    c.polygon([(3, 8), (16, 5), (29, 8), (29, 26), (16, 29), (3, 26)], GOLD_600)
+    # hai trang mở
+    c.polygon([(5, 9), (16, 6), (16, 26), (5, 23)], TEXT_100)
+    c.polygon([(27, 9), (16, 6), (16, 26), (27, 23)], SILVER_200)
+    # sống giữa
+    c.line(16, 6, 16, 26, TEXT_500, 1)
+    # dòng chữ khắc ink
+    for y in (11, 14, 17, 20):
+        c.hline(7, y, 6, INK_700)
+        c.hline(19, y - 1, 6, INK_700)
+    # thẻ bookmark (đỏ, cài trên trang phải)
+    c.rect(21, 3, 4, 6, RED_400)
+    c.rect(21, 3, 4, 1, RED_300)
+    c.outline8()
+    return c
+
+
+def icon_sell() -> Canvas:
+    """NN5 mới: thẻ giá vàng kèm mũi tên ra ngoài (bán hàng)."""
+    c = Canvas(32, 32)
+    # thẻ giá quay trái
+    c.polygon([(24, 5), (10, 5), (3, 16), (10, 27), (24, 27)], GOLD_400)
+    c.polygon([(24, 5), (10, 5), (8, 8), (22, 8)], GOLD_200)
+    c.rect(22, 5, 2, 22, GOLD_600)
+    # lỗ dây
+    c.disc(9, 16, 2.6, INK_950)
+    c.disc(9, 16, 1.4, INK_800)
+    # dòng giá khắc
+    c.rect(14, 14, 7, 2, INK_900)
+    c.rect(14, 18, 7, 2, INK_900)
+    # mũi tên bay ra (lime, góc phải trên, tách khỏi thẻ)
+    c.rect(24, 9, 5, 3, LIME_400)
+    c.polygon([(29, 7), (31, 10.5), (29, 14)], LIME_400)
+    c.polygon([(24, 9), (26, 10.5), (24, 12)], LIME_200)
+    c.outline8()
+    return c
+
+
+def icon_auction() -> Canvas:
+    """NN5 mới: búa đấu giá gỗ vàng, cán ink, đế tạ."""
+    c = Canvas(32, 32)
+    # đầu búa (khối vuông xoay 45°, hai Band gold)
+    c.line(20, 4, 27, 11, GOLD_600, 8)
+    c.line(20, 4, 27, 11, GOLD_400, 6)
+    c.line(19, 3, 28, 12, GOLD_200, 1)
+    # cán búa
+    c.line(17, 13, 6, 24, GOLD_600, 4)
+    c.line(17, 13, 6, 24, GOLD_400, 2)
+    c.disc(5, 25, 2.5, GOLD_200)
+    # đế tạ 2 bậc
+    c.rect(18, 24, 12, 3, INK_700)
+    c.rect(16, 27, 16, 3, INK_900)
+    c.hline(18, 24, 12, TEXT_500)
+    c.outline8()
+    return c
+
+
+def icon_friendly() -> Canvas:
+    """NN5 mới: hai trái tim riêng biệt (tim đỏ nhỏ trên phải, tim vàng dưới trái)."""
+    c = Canvas(32, 32)
+    # tim nhỏ đỏ — trên phải
+    c.disc(17.5, 7.5, 3.8, RED_400)
+    c.disc(23.5, 7.5, 3.8, RED_400)
+    c.polygon([(14, 9), (27, 9), (20.5, 18)], RED_400)
+    c.polygon([(16, 7), (20, 7), (18, 10)], RED_300)
+    # tim lớn vàng — dưới trái
+    c.disc(9.0, 16.0, 5.6, GOLD_400)
+    c.disc(16.0, 16.0, 5.6, GOLD_400)
+    c.polygon([(4, 19), (21, 19), (12.5, 30)], GOLD_400)
+    c.polygon([(6, 14), (11, 14), (8.5, 18)], GOLD_200)
+    c.outline8()
+    return c
+
+
+def icon_shop() -> Canvas:
+    """NN5 mới: cửa hàng — mái sạp sọc vàng/đỏ + thân, cửa và cửa sổ."""
+    c = Canvas(32, 32)
+    # mái sạp
+    c.rect(2, 3, 28, 2, GOLD_600)
+    for i, x in enumerate(range(2, 30, 4)):
+        c.rect(x, 5, 4, 5, GOLD_400 if i % 2 == 0 else RED_600)
+        c.rect(x, 10, 4, 2, GOLD_400 if i % 2 == 0 else RED_600)
+        c.rect(x + 1, 12, 2, 1, GOLD_400 if i % 2 == 0 else RED_600)
+    # thân nhà
+    c.rect(4, 13, 24, 16, INK_800)
+    c.frame(4, 13, 24, 16, INK_900)
+    # cửa
+    c.rect(13, 19, 7, 10, INK_950)
+    c.rect(18, 24, 1, 2, GOLD_200)
+    # cửa sổ
+    c.rect(6, 17, 5, 5, AQUA_400)
+    c.frame(6, 17, 5, 5, INK_950)
+    # biển hiệu
+    c.rect(21, 17, 6, 5, GOLD_400)
+    c.rect(22, 19, 4, 1, GOLD_200)
+    c.outline8()
+    return c
+
+
+def icon_chat_tag() -> Canvas:
+    """NN5 mới: bong bóng chat tối viền vàng kèm sao gold, đuôi rõ."""
+    c = Canvas(32, 32)
+    # bóng chat (bo tròn hai đầu)
+    c.disc(9, 10, 6.0, INK_900)
+    c.disc(23, 10, 6.0, INK_900)
+    c.rect(4, 4, 24, 13, INK_900)
+    c.frame(4, 4, 24, 13, GOLD_400)
+    c.frame(5, 5, 22, 11, GOLD_600)
+    # đuôi bong bóng (tam giác đậm dưới trái)
+    c.polygon([(7, 16), (16, 16), (7, 27)], INK_900)
+    c.line(7, 16, 7, 26, GOLD_400, 1)
+    c.line(7, 26, 12, 18, GOLD_600, 1)
+    # sao tag giữa bóng
+    c.star(16, 10, 5.5, 2.3, GOLD_200)
+    c.star(16, 10, 2.2, 1.0, GOLD_400)
+    c.outline8()
+    return c
+
+
+def icon_worldtime() -> Canvas:
+    """NN5 mới: mặt trời đồng hồ — quỹ đạo vàng, kim giờ tối."""
+    c = Canvas(32, 32)
+    # tia nắng 8 hướng
+    for dx, dy in ((0, -12), (0, 12), (-12, 0), (12, 0),
+                   (-9, -9), (9, -9), (-9, 9), (9, 9)):
+        cx, cy = 16 + dx, 16 + dy
+        c.rect(cx - 1, cy - 1, 3, 3, GOLD_200)
+    # đĩa mặt trời / mặt đồng hồ
+    c.disc(16, 16, 10.0, GOLD_600)
+    c.disc(16, 16, 9.0, GOLD_400)
+    c.disc(16, 16, 7.0, GOLD_200)
+    c.disc(16, 16, 6.0, GOLD_400)
+    # kim giờ + phút
+    c.rect(15, 10, 2, 7, INK_950)
+    c.rect(15, 15, 6, 2, INK_950)
+    c.disc(16, 16, 1.5, INK_950)
+    c.outline8()
+    return c
+
+
+def icon_sword() -> Canvas:
+    """NN5 mới: kiếm bạc lưỡi sáng, chắn vàng, chuôi quấn."""
+    c = Canvas(32, 32)
+    # lưỡi kiếm (2 tông bạc, sống tối)
+    c.line(25, 4, 12, 17, SILVER_200, 5)
+    c.line(26, 5, 14, 17, TEXT_100, 3)
+    c.line(25, 4, 12, 17, TEXT_500, 1)
+    tip = [(27, 2), (29, 4), (26, 6)]
+    c.polygon(tip, SILVER_200)
+    # chắn ngang vàng
+    c.line(8, 14, 16, 22, GOLD_600, 6)
+    c.line(8, 14, 16, 22, GOLD_400, 4)
+    c.line(9, 15, 15, 21, GOLD_200, 1)
+    # chuôi quấn
+    c.line(7, 23, 3, 27, GOLD_600, 4)
+    for i, (x, y) in enumerate(((7, 23), (5, 25), (3, 27))):
+        c.rect(x - 1, y - 1, 3, 1, INK_900)
+    # chuôi nút
+    c.disc(2.5, 28.5, 2.2, GOLD_400)
+    c.outline8()
+    return c
+
+
 def icon_bounty() -> Canvas:
     c = Canvas(32, 32)
     # bag body
@@ -730,8 +951,9 @@ def icon_bounty() -> Canvas:
     c.polygon([(11, 8), (21, 8), (19, 14), (13, 14)], GOLD_400)
     c.rect(10, 7, 12, 2, GOLD_600)
     c.rect(11, 12, 10, 2, INK_900)
-    # star
+    # star (v2: thêm chấm sáng giữa sao)
     c.star(16, 20, 6.5, 2.8, GOLD_200)
+    c.star(16, 20, 2.4, 1.0, GOLD_400)
     c.outline8()
     return c
 
@@ -880,6 +1102,17 @@ ITEM_TEXTURES = {
     "icon/mail": (icon_mail, 32, 32),
     "icon/ally": (icon_ally, 32, 32),
     "icon/leaderboard": (icon_leaderboard, 32, 32),
+    # NN5 (A2): 10 icon item_model còn thiếu cho menu/shop/scoreboard
+    "icon/sethome": (icon_sethome, 32, 32),
+    "icon/rp": (icon_rp, 32, 32),
+    "icon/book": (icon_book, 32, 32),
+    "icon/sell": (icon_sell, 32, 32),
+    "icon/auction": (icon_auction, 32, 32),
+    "icon/friendly": (icon_friendly, 32, 32),
+    "icon/shop": (icon_shop, 32, 32),
+    "icon/chat-tag": (icon_chat_tag, 32, 32),
+    "icon/worldtime": (icon_worldtime, 32, 32),
+    "icon/sword": (icon_sword, 32, 32),
 }
 
 
@@ -924,6 +1157,10 @@ REQUIRED_MODELS = {
     "icon/market", "icon/cash", "icon/land", "icon/casino", "icon/mini",
     "icon/home", "icon/spawn", "icon/bounty", "icon/mail", "icon/ally",
     "icon/leaderboard",
+    # NN5 (A2/A5): đủ icon item_model cho mọi entry menu + shop/scoreboard
+    "icon/sethome", "icon/rp", "icon/book", "icon/sell", "icon/auction",
+    "icon/friendly", "icon/shop", "icon/chat-tag", "icon/worldtime",
+    "icon/sword",
 }
 
 
@@ -1165,6 +1402,17 @@ def write_previews():
     place(m, 30, icon_mail())
     place(m, 32, icon_ally())
     place(m, 34, icon_leaderboard())
+    # NN5: entry menu mới — đủ icon chuẩn như A5 yêu cầu
+    place(m, 11, icon_sethome())
+    place(m, 13, icon_rp())
+    place(m, 15, icon_book())
+    place(m, 19, icon_sell())
+    place(m, 21, icon_auction())
+    place(m, 23, icon_friendly())
+    place(m, 25, icon_shop())
+    place(m, 29, icon_chat_tag())
+    place(m, 31, icon_worldtime())
+    place(m, 33, icon_sword())
     place(m, 45, make_button("gray", "normal", "back"))
     place(m, 46, tex_card())
     place(m, 48, make_button("gray", "normal", "prev"))

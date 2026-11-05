@@ -1,0 +1,16 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "nomnom:font/hud.png",
+      "height": 20,
+      "ascent": 16,
+      "chars": [
+        "\ue040\ue041\ue042\ue043\ue044\ue045\ue046\ue047",
+        "\ue048\ue049\ue04a\ue04b\ue04c\ue04d\u0000\u0000",
+        "\ue050\ue051\ue052\ue053\ue054\ue055\ue056\ue057",
+        "\ue058\ue059\ue05a\ue05b\ue05c\ue05d\u0000\u0000"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,43 @@
 # NomNom UI resource pack — phát hành & cấu trúc
 
-## 1. Bản phát hành
+## 0. Bản phát hành v1.1.0 (đợt 5, 2026-11-06) — pack chính + pack HUD
+
+Release: https://github.com/NomNomNemNie/NomNomSMP/releases/tag/v1.1.0
+
+| Trường | NomNomUI v1.1.0 | NomNomUI-HUD v1.0.0 |
+|---|---|---|
+| Asset URL | `https://github.com/NomNomNemNie/NomNomSMP/releases/download/v1.1.0/NomNomUI-v1.1.0.zip` | `https://github.com/NomNomNemNie/NomNomSMP/releases/download/v1.1.0/NomNomUI-HUD-v1.0.0.zip` |
+| Kích thước | 138.392 bytes | 12.422 bytes |
+| Số file | 275 (161 PNG, 107 JSON, 22 weapons) | 11 (3 PNG, 3 JSON) |
+| SHA-1 | `d964fee394ba840c92ea86464589436da38cfae9` | `e5ba4876cf7c68bfc52a858ac8650df2b28bfb41` |
+| SHA-256 | `b9f67c4df05933d17c757a37a26119fb467f424ce9d1cfc68964ee62e2ace177` | `87e22c1e6c5da67e8f88088dd0fe26b743f5cb229707b9b971e9efd319e44348` |
+| `pack_format` | 75 | 75 |
+
+Validate: `validate_font.py` PASS (30 check, 146/146 tiếng Việt), `validate_pack.py`
+PASS cả hai preset (`main` 0 lỗi, `hud` 0 lỗi). Build deterministic — rebuild trong
+workspace phát triển và trong repo cho cùng SHA-1 từng pack (đã chạy đối chiếu).
+
+Đổi chính v1.1.0 so với v1.0.0 (A1/A2/A3 đợt 5):
+
+1. **A1 — font nét to, sạch**: render TRỰC TIẾP ở cỡ cuối em **13 px** có hinting
+   FreeType (bỏ supersample 4x + LANCZOS của 1.0 — nguyên nhân "nhìn như 480p"),
+   curve alpha 36..210 cắt quầng; cell 16x16 → **16x20** (atlas 256x400 → 256x500),
+   provider `height 20 / ascent 16`. Glyph to hơn ~26% (cap 7.5 → ~9.4 px).
+2. **A2 — icon**: 48 glyph vẽ lại (phong cách NomNom, binary trắng + viền đen,
+   advance 9 giữ nguyên) + **6 icon mới** `book, sell, friendly, shop, chat-tag,
+   worldtime` tại **U+E030–E035** (48 icon đầu giữ nguyên codepoint — HUD config
+   không phải đổi). Thêm **10 item icon 32x32** + model + item definition:
+   `sethome, rp, book, sell, auction, friendly, shop, chat-tag, worldtime, sword`.
+3. **A3 — pack HUD riêng**: `NomNomUI-HUD` chỉ chứa font `nomnom:hud`
+   (digits fixed-width `0-9 . , k M` advance **10 px** tại U+E040–E04D + ornament/khung
+   U+E050–E05D cho sidebar/tablist) và copy byte-identical của `nomnom:ui`.
+   Override `minecraft:default` của pack HUD là superset (tham chiếu chéo
+   `nomnom:font/vi_text.png` của pack chính, thêm `nomnom:hud` trước `include/unifont`)
+   — cài cả hai pack không mất chữ; thiếu pack chính thì chữ rơi về fallback vanilla.
+   Gửi pack: **NomNomUI trước, NomNomUI-HUD sau**. Bảng glyph + cách căn phải:
+   `resourcepack-hud/HUD-INFO.txt` (ship kèm zip).
+
+## 1. Bản phát hành v1.0.0 (lịch sử)
 
 | Trường | Giá trị |
 |---|---|

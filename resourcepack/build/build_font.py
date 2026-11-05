@@ -1,28 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NomNom UI - build the Vietnamese bitmap font atlas + the 48 PUA icon glyphs.
+NomNom UI v1.1 — build the Vietnamese bitmap font atlas + the 54 PUA icon glyphs.
+
+NN5 (2026-11-06) — bản dựng lại theo feedback "font nhìn như 480p":
+  * Pipeline MỚI: render TRỰC TIẾP ở cỡ cuối (em 13 px) bằng FreeType CÓ HINTING
+    (ttfautohint của Google Fonts), không còn supersample 4x + LANCZOS như 1.0 —
+    berkht hint bắt nét chữ vào lưới pixel => nét sạch, không mờ.
+  * Glyph TO HƠN: em 10.31 -> 13 px (+26%), nhờ cell cao hơn 16 -> 20 px
+    (atlas 256x500). Vẫn render 1:1 (height == cell height) => không méo.
+  * Alpha sau render được nắn độ tương phản (curve 36..210) để cắt quầng mờ
+    nhưng vẫn giữ một chút khử răng cưa.
+  * Hợp đồng giữ nguyên: 385 codepoint (5 block Latin), 146/146 tiếng Việt
+    precomposed, fallback chain minecraft:default không đổi.
 
 Outputs (all under work/rp_src, overwritten deterministically -> idempotent):
 
   assets/minecraft/font/default.json         # the REAL override of minecraft:default
   assets/nomnom/font/default.json            # alias font id nomnom:default (same body)
-  assets/nomnom/font/ui.json                 # font id nomnom:ui  (PUA U+E000..U+E02F)
+  assets/nomnom/font/ui.json                 # font id nomnom:ui  (PUA U+E000..U+E035)
   assets/nomnom/font/FONT-INFO.txt           # font provenance / metrics / coverage
-  assets/nomnom/font/charset.tsv             # cp,char,row,col,ink_w,advance(16px),advance(9px)
-  assets/nomnom/textures/font/vi_text.png    # 256x400 text atlas, 16x25 cells of 16x16
-  assets/nomnom/textures/font/icons.png      # 128x96  icon atlas, 8x6 cells of 16x16
-  assets/nomnom/textures/icon/<id>.png       # 48 individual 16x16 icons
+  assets/nomnom/font/charset.tsv             # cp,char,row,col,ink_w,advance(20px),advance(9px)
+  assets/nomnom/textures/font/vi_text.png    # 256x500 text atlas, 16x25 cells of 16x20
+  assets/nomnom/textures/font/icons.png      # 128x112 icon atlas, 8x7 cells of 16x16
+  assets/nomnom/textures/icon/<id>.png       # 54 individual 16x16 icons
   LICENSE-OFL.txt                            # verbatim OFL 1.1 of Be Vietnam Pro
 
-Preview artefacts (not shipped): work/rp_build/preview_icons.png, preview_text.png
+Icon manifest: work/rp_build/icons-nn5.json (48 icon U+E000..U+E02F GIỮ codepoint cũ
+so với work/nn4-icons.json + 6 icon mới U+E030..U+E035).
 
 Usage:
   python work/rp_build/build_font.py                # build + validate + print tables
   python work/rp_build/build_font.py --verify-only  # validate what is on disk
   python work/rp_build/build_font.py --no-preview   # skip preview PNGs
 
-Design source: work/nn4-design.md sec.1.6, sec.2, sec.3.4-3.5 ; work/nn4-icons.json.
 The client advance formula is copied from BitmapProvider#load:
     pixelScale = height / cellHeight
     advance    = round_half_up(actualGlyphWidth * pixelScale) + 1
@@ -46,8 +57,13 @@ from fontTools.ttLib import TTFont
 # --------------------------------------------------------------------------- paths
 HERE = Path(__file__).resolve().parent            # work/rp_build
 WORK = HERE.parent                                # work
-RP = HERE.parent                                  # resourcepack/ (repo layout)
-ICON_JSON = HERE.parent / "icons.json"            # single source of truth for codepoints
+RP = HERE.parent if (HERE.parent / "assets").is_dir() else WORK / "rp_src"  # repo: resourcepack/, workspace: work/rp_src
+ICON_JSON = HERE / "icons-nn5.json"               # NN5 manifest: source of truth for codepoints
+if not ICON_JSON.is_file():
+    ICON_JSON = HERE.parent / "icons.json"         # repo layout: resourcepack/icons.json
+ICON_JSON_V1 = WORK / "nn4-icons.json"             # v1.0 manifest (compat check, first 48)
+if not ICON_JSON_V1.is_file():
+    ICON_JSON_V1 = HERE.parent / "icons.json"      # repo layout fallback
 FONT_DIR = HERE / "fonts"
 TTF_REGULAR = FONT_DIR / "BeVietnamPro-Regular.ttf"
 OFL_SRC = FONT_DIR / "OFL.txt"
@@ -63,16 +79,18 @@ SHA_REGULAR = "cd1ef6e9d7db28ad5cdb88a65ccbe693870e60d340b791f349d248342b4fe4c3"
 SHA_OFL = "6b7f8f73609a25ea78c891e34cf37b06f8a676b7ea986e941e43b009110f2a85"
 
 # ------------------------------------------------------------------- atlas geometry
-CELL = 16                 # text + icon cell, px
-TEXT_COLS, TEXT_ROWS = 16, 25          # 400 cells, 385 used
-ICON_COLS, ICON_ROWS = 8, 6            # 48 icons
-SUPERSAMPLE = 4
-SS_CELL = CELL * SUPERSAMPLE           # 64
-BASELINE = 13                          # px from cell top, == ascent in the JSON
-SS_BASELINE = BASELINE * SUPERSAMPLE   # 52
-EM_PX = 13.0 / (1261.0 / 1000.0)       # usWinAscent 1261/1000 -> em 10.309 px
-SS_EM = EM_PX * SUPERSAMPLE
-ALPHA_CUTOFF = 8                       # LANCZOS residue below this becomes 0
+# TEXT (NN5): cell 16 wide x 20 tall, em 13 px rendered 1:1 (height == 20).
+CELL_W, CELL_H = 16, 20
+TEXT_COLS, TEXT_ROWS = 16, 25                    # 400 cells, 385 used -> atlas 256x500
+EM_PX = 13                                       # rendered em, direct hinted (no downscale)
+BASELINE = 16                                    # baseline from cell top == provider ascent
+# Contrast curve on FreeType coverage: below 36 -> transparent (kills halo),
+# above 210 -> solid (solidifies stems); between: linear stretch.
+ALPHA_LOW, ALPHA_HIGH = 36, 210
+
+# ICONS: unchanged contract from v1.0 (render 9 px, advance 9).
+ICELL = 16
+ICON_COLS, ICON_ROWS = 8, 7                      # 56 cells, 54 used -> atlas 128x112
 
 ICON_W, ICON_H = 13, 14                # authoring canvas for the *fill* mask
 ICON_OFFSET = (1, 1)                   # fill mask placed at (1,1): ring expands to x0..14
@@ -91,7 +109,8 @@ REQUIRED_ICON_NAMES = (
     "tps ping online bounty cash coin sword shield land market auction casino mini menu "
     "home sethome spawn rp mail ally kill back bag bed chest heart star fire clock lock "
     "mail-verify warn check cross arrow-l arrow-r page-prev page-next search sort plus minus "
-    "confirm cancel crown tier1 tier2 tier3 tier4 tier5"
+    "confirm cancel crown tier1 tier2 tier3 tier4 tier5 "
+    "book sell friendly shop chat-tag worldtime"
 ).split()
 
 
@@ -109,6 +128,15 @@ def round_half_up(x: float) -> int:
 
 def hex_cp(cp: int) -> str:
     return "U+%04X" % cp
+
+
+def alpha_curve(v: int) -> int:
+    """Contrast stretch of FreeType coverage: cut halo, solidify stems, keep AA."""
+    if v <= ALPHA_LOW:
+        return 0
+    if v >= ALPHA_HIGH:
+        return 255
+    return int(ALPHA_LOW + (v - ALPHA_LOW) * (255 - ALPHA_LOW) / (ALPHA_HIGH - ALPHA_LOW))
 
 
 # ========================================================================== text font
@@ -133,12 +161,16 @@ def vietnamese_chars() -> list[str]:
 
 
 def render_text_cell(ch: str, font: ImageFont.FreeTypeFont) -> Image.Image:
-    """Render one glyph at 4x into a 64x64 cell, downscale to 16x16, threshold."""
-    big = Image.new("L", (SS_CELL, SS_CELL), 0)
-    ImageDraw.Draw(big).text((0, SS_BASELINE), ch, font=font, fill=255, anchor="ls")
-    small = big.resize((CELL, CELL), Image.LANCZOS)
-    alpha = small.point(lambda v: 0 if v < ALPHA_CUTOFF else v)
-    cell = Image.new("RGBA", (CELL, CELL), (255, 255, 255, 0))
+    """Render one glyph DIRECTLY at final size (hinted) into a 16x20 cell.
+
+    Không supersample, không downscale — hinting của FreeType (ttfautohint) bắt
+    các nét chính vào lưới pixel nên nét sạch. Alpha sau đó được nắn bằng
+    alpha_curve để bỏ quầng mờ mà vẫn giữ khử răng cưa.
+    """
+    mask = Image.new("L", (CELL_W, CELL_H), 0)
+    ImageDraw.Draw(mask).text((0, BASELINE), ch, font=font, fill=255, anchor="ls")
+    alpha = mask.point(alpha_curve)
+    cell = Image.new("RGBA", (CELL_W, CELL_H), (255, 255, 255, 0))
     cell.putalpha(alpha)
     return cell
 
@@ -167,12 +199,12 @@ def build_text_atlas(log) -> tuple[Image.Image, list[dict], list[int]]:
     if len(cps) != expected:
         raise SystemExit(f"charset drift: got {len(cps)} codepoints, design expects {expected}")
 
-    font = ImageFont.truetype(str(TTF_REGULAR), int(round(SS_EM)))
+    font = ImageFont.truetype(str(TTF_REGULAR), EM_PX)
     used_rows = (len(cps) + TEXT_COLS - 1) // TEXT_COLS
     if used_rows > TEXT_ROWS:
         raise SystemExit(f"atlas overflow: {len(cps)} glyphs need {used_rows} rows > {TEXT_ROWS}")
 
-    atlas = Image.new("RGBA", (TEXT_COLS * CELL, TEXT_ROWS * CELL), (255, 255, 255, 0))
+    atlas = Image.new("RGBA", (TEXT_COLS * CELL_W, TEXT_ROWS * CELL_H), (255, 255, 255, 0))
     glyphs: list[dict] = []
     overflows: list[str] = []
 
@@ -180,21 +212,23 @@ def build_text_atlas(log) -> tuple[Image.Image, list[dict], list[int]]:
         ch = chr(cp)
         cell = render_text_cell(ch, font)
         row, col = divmod(i, TEXT_COLS)
-        atlas.alpha_composite(cell, (col * CELL, row * CELL))
+        atlas.alpha_composite(cell, (col * CELL_W, row * CELL_H))
         iw = ink_width(cell)
-        adv16 = round_half_up(iw * 1.0) + 1 if iw else 0     # height 16 / cell 16
+        adv = round_half_up(iw * (CELL_H / CELL_H)) + 1 if iw else 0   # height 20 / cell 20
         glyphs.append({"cp": cp, "char": ch, "row": row, "col": col,
-                       "ink_w": iw, "advance": adv16})
+                       "ink_w": iw, "advance": adv})
         # every glyph must fit with >=1px of clearance on the right (design sec.3.4)
-        if iw > CELL - 1:
-            overflows.append(f"{hex_cp(cp)} ink={iw}")
-        # vertical sanity: ink must stay inside the cell
+        if iw > CELL_W - 1:
+            overflows.append(f"{hex_cp(cp)} ink_w={iw}")
+        # vertical sanity: ink must stay inside the cell (no clipped diacritics)
         bbox = cell.getchannel("A").getbbox()
         if bbox is None:
             overflows.append(f"{hex_cp(cp)} EMPTY")
+        elif bbox[1] < 0 or bbox[3] > CELL_H:
+            overflows.append(f"{hex_cp(cp)} vink={bbox}")
 
     if overflows:
-        log.append("WARN text glyphs outside 16x16 budget: " + ", ".join(overflows[:20]))
+        log.append("WARN text glyphs outside 16x20 budget: " + ", ".join(overflows[:20]))
 
     return atlas, glyphs, cps
 
@@ -345,119 +379,136 @@ def _point_in_poly(px: float, py: float, pts: list[tuple[float, float]]) -> bool
 
 
 # ---------------------------------------------------------------- icon definitions
-# Every function receives a Mask with the 13x14 authoring canvas (0..12, 0..13).
-# Keep filled pixels inside that box; the ring generator adds the black 1px outline
-# and the build keeps column 15 of the 16px cell transparent.
+# NN5: toàn bộ 54 icon được vẽ lại (phong cách NomNom: fill trắng, viền đen tự sinh,
+# dáng mạnh 2px, khoảng lặp lại âm rõ ràng). Mỗi hàm nhận Mask 13x14 (0..12, 0..13).
 
 def i_tps(m: Mask) -> None:
-    # speedometer: full dial + pointer that pierces the ring at 45 degrees
-    m.ring(6.0, 7.0, 5.2, w=2)
+    # speedometer: dial + kim chéo đâm qua vành (vành bị khoét nơi kim đi qua)
+    m.ring(6.0, 7.5, 5.6, w=2)
     m.line(6, 7, 10, 2, w=2)
-    m.disc(6.0, 7.0, 1.6)
-    # break the ring on both sides of the pointer so the needle reads in front
+    m.disc(6.0, 7.5, 1.6)
     m.hole(9, 2, 10, 3)
     m.hole(9, 4, 10, 5)
+    # hai vạch đo trong mặt số
+    m.vbar(3, 10, 11, w=1)
+    m.vbar(9, 10, 11, w=1)
 
 
 def i_ping(m: Mask) -> None:
-    # three ascending signal bars ("ba vạch sóng tăng dần")
-    m.rect(0, 9, 2, 13)
-    m.rect(5, 5, 7, 13)
-    m.rect(10, 1, 12, 13)
+    # ba cột sóng tăng dần, đáy cùng một hàng
+    m.rect(0, 8, 2, 13)
+    m.rect(5, 4, 7, 13)
+    m.rect(10, 0, 12, 13)
 
 
 def i_online(m: Mask) -> None:
-    # two players: back person (right) then front person (left)
-    m.disc(9.6, 2.4, 2.0)
-    m.poly([(7.8, 12), (11.2, 12), (10.4, 6), (8.4, 6)])
-    m.disc(3.2, 4.2, 2.2)
-    m.poly([(0, 13), (6, 13), (5, 7), (1, 7)])
-    m.hole(6, 0, 7, 6)
+    # hai người: người sau (phải) rồi người trước (trái) đè lên
+    m.disc(9.3, 3.2, 2.1)
+    m.poly([(7.5, 13), (12, 13), (11.2, 7), (8.2, 7)])
+    m.disc(4.2, 4.6, 2.5)
+    m.poly([(0, 13), (8, 13), (6.8, 8), (1.2, 8)])
+    # đường phân cách hai thân
+    m.hole_line(7, 8, 7, 13, w=1)
 
 
 def i_bounty(m: Mask) -> None:
-    # money bag with a star
-    m.poly([(2, 5), (10, 5), (12.2, 8.5), (10, 12.8), (2, 12.8), (-0.2, 8.5)])
-    m.rect(4, 3, 8, 4)
-    m.rect(5, 2, 7, 2)
-    m.hole_star(6.0, 9.0, 2.8, 1.2)
+    # túi tiền: thân phồng, cổ buộc, ngôi sao khắc xuyên
+    m.poly([(1.5, 6), (11.5, 6), (12.6, 9), (10, 13.6), (3, 13.6), (0.4, 9)])
+    m.rect(4, 4, 8, 5)
+    m.rect(3, 2, 9, 3)
+    m.rect(5, 0, 7, 1)
+    m.hole_star(6.0, 9.6, 2.7, 1.1)
 
 
 def i_cash(m: Mask) -> None:
-    # banknote with a minted seal
+    # tờ tiền: seal tròn rỗng + hai mép bản.lẻ
     m.rect(0, 3, 12, 10)
+    m.hole(0, 3, 0, 3)
+    m.hole(12, 3, 12, 3)
+    m.hole(0, 10, 0, 10)
+    m.hole(12, 10, 12, 10)
     m.carve(lambda t: t.ring(6.0, 6.5, 2.7, w=1))
 
 
 def i_coin(m: Mask) -> None:
-    m.disc(6.0, 6.7, 5.3)
-    m.carve(lambda t: t.ring(6.0, 6.7, 3.0, w=1))
+    # đồng xu: vành đúc + vệt mint trên đỉnh
+    m.disc(6.0, 6.8, 5.4)
+    m.carve(lambda t: t.ring(6.0, 6.8, 3.1, w=1))
+    m.hole(6, 2, 6, 3)
 
 
 def i_sword(m: Mask) -> None:
-    m.line(11, 1, 6, 6, w=2)
+    # kiếm chéo 45°: lưỡi NE, chuôi SW,-guard vuông góc, chuông tròn
+    m.line(11, 2, 6, 7, w=2)
+    m.set(12, 1)
     m.line(4, 4, 8, 8, w=2)
-    m.line(6, 6, 2, 10, w=2)
-    m.disc(1.2, 11.2, 1.3)
+    m.line(6, 8, 3, 11, w=2)
+    m.disc(1.9, 12.0, 1.3)
 
 
 def i_shield(m: Mask) -> None:
-    m.poly([(2, 1), (10, 1), (10.2, 5), (9, 8.5), (6, 13), (3, 8.5), (1.8, 5)])
+    # khiên: thân nhu mì, chữ thập khắc xuyên
+    m.poly([(1.5, 0.5), (11.5, 0.5), (11.5, 5), (9, 9.5), (6.5, 13), (4, 9.5), (1.5, 5)])
     m.hole(6, 3, 6, 9)
     m.hole(3, 5, 9, 5)
 
 
 def i_land(m: Mask) -> None:
-    # marked plot: ground, marker post, flag
+    # lô đất: nền đất dày, cột mốc + cờ bay
     m.hbar(11, 0, 12, w=2)
-    m.vbar(3, 1, 11, w=2)
-    m.tri((5, 1), (11, 3), (5, 5))
-    m.vbar(10, 8, 11, w=1)
+    m.vbar(3, 1, 10, w=2)
+    m.tri((5, 1), (11, 3.4), (5, 6))
+    m.vbar(9, 9, 10, w=1)
+    m.vbar(11, 8, 10, w=1)
 
 
 def i_market(m: Mask) -> None:
-    # shopping basket: handle arc, rim, tapered body with weave
-    m.arc(6, 7.0, 4.0, 0, 180, w=2)
+    # giỏ hàng: quai cung, vành miệng, thân thuôn + nan dọc
+    m.arc(6, 7.2, 4.2, 0, 180, w=2)
     m.hbar(7, 0, 12, w=2)
-    m.poly([(1, 9), (11, 9), (9.2, 13.2), (2.8, 13.2)])
+    m.poly([(0.8, 8.5), (12.2, 8.5), (10, 13.6), (3, 13.6)])
     m.hole(4, 10, 4, 13)
     m.hole(8, 10, 8, 13)
 
 
 def i_auction(m: Mask) -> None:
-    # gavel: head across the top-right, handle down-left
-    m.line(6, 3, 10, 7, w=3)
-    m.line(6, 6, 2, 10, w=2)
-    m.disc(1.2, 11.0, 1.2)
-    m.hbar(13, 3, 9, w=1)
+    # búa đấu giá: đầu búa dày 45°, cán xuôi về tay, đế tạ 2 bậc
+    m.line(7, 2, 10, 5, w=3)
+    m.line(6, 6, 1, 11, w=2)
+    m.disc(0.9, 11.6, 1.2)
+    m.hbar(13, 3, 10, w=1)
+    m.hbar(12, 3, 9, w=1)
 
 
 def i_casino(m: Mask) -> None:
-    # two dice, one behind the other
-    m.rect(0, 1, 5, 7)
+    # hai xúc xắc: 3 chéo + 5 chấm
+    m.rect(0, 1, 5, 6)
     m.hole(0, 1, 0, 1)
     m.hole(5, 1, 5, 1)
-    m.hole(0, 7, 0, 7)
+    m.hole(0, 6, 0, 6)
+    m.hole(5, 6, 5, 6)
     m.hole(1, 3, 2, 4)
-    m.hole(3, 5, 4, 6)
-    m.rect(7, 6, 12, 12)
-    m.hole(7, 6, 7, 6)
-    m.hole(12, 6, 12, 6)
+    m.hole(3, 2, 4, 2)
+    m.hole(1, 5, 2, 5)
+    m.rect(7, 7, 12, 12)
+    m.hole(7, 7, 7, 7)
+    m.hole(12, 7, 12, 7)
     m.hole(7, 12, 7, 12)
     m.hole(12, 12, 12, 12)
-    m.hole(9, 8, 10, 9)
-    m.hole(10, 10, 11, 11)
+    m.hole(9, 9, 10, 10)
+    m.hole(8, 8, 9, 8)
+    m.hole(10, 8, 11, 8)
+    m.hole(8, 10, 9, 10)
+    m.hole(10, 10, 11, 10)
 
 
 def i_mini(m: Mask) -> None:
-    # gamepad: body, grips, d-pad, two buttons
-    m.rect(0, 4, 12, 9)
+    # tay cầm game: thân + hai bám, D-pad và nút khắc
+    m.rect(0, 4, 12, 8)
+    m.rect(0, 8, 3, 12)
+    m.rect(9, 8, 12, 12)
     m.hole(0, 4, 0, 4)
     m.hole(12, 4, 12, 4)
-    m.hole(0, 9, 0, 9)
-    m.hole(12, 9, 12, 9)
-    m.rect(1, 9, 3, 12)
-    m.rect(9, 9, 11, 12)
     m.hole(3, 5, 3, 7)
     m.hole(2, 6, 4, 6)
     m.hole(8, 5, 9, 6)
@@ -465,13 +516,15 @@ def i_mini(m: Mask) -> None:
 
 
 def i_menu(m: Mask) -> None:
+    # ba gạch: gạch giữa ngắn hơn một nhịp (menu kiểu mới)
     m.hbar(2, 0, 12, w=2)
-    m.hbar(6, 0, 12, w=2)
+    m.hbar(6, 2, 12, w=2)
     m.hbar(10, 0, 12, w=2)
 
 
 def i_home(m: Mask) -> None:
-    m.tri((6, 0), (12.4, 6), (-0.4, 6))
+    # mái nhà tam giác trùm kín + ống khói + cửa vòm
+    m.tri((6, 0), (13, 6.5), (-1, 6.5))
     m.rect(9, 1, 10, 3)
     m.rect(1, 7, 11, 12)
     m.hole(1, 7, 11, 7)
@@ -479,45 +532,47 @@ def i_home(m: Mask) -> None:
 
 
 def i_sethome(m: Mask) -> None:
-    m.tri((4, 0), (9, 4), (-1, 4))
-    m.rect(1, 4, 7, 9)
-    m.hole(1, 4, 7, 4)
-    m.hole(3, 6, 4, 9)
-    m.hbar(9, 8, 12, w=2)
-    m.vbar(9, 6, 12, w=2)
+    # nhà nhỏ + dấu cộng nổi bên phải, hai khối tách bạch bằng khe ring
+    m.tri((3, 0), (8, 4.5), (-2, 4.5))
+    m.rect(0, 5, 7, 10)
+    m.hole(0, 5, 7, 5)
+    m.hole(2, 7, 3, 10)
+    m.rect(10, 6, 12, 8)
+    m.rect(11, 5, 12, 9)
 
 
 def i_spawn(m: Mask) -> None:
-    # beacon: platform, pillar, cap, light cone
-    m.poly([(0, 13), (12, 13), (9, 10), (3, 10)])
+    # beacon: bệ, trụ, đèn kim cương tỏa sáng
+    m.poly([(0, 13), (12, 13), (9.5, 10.5), (2.5, 10.5)])
     m.rect(5, 6, 7, 10)
     m.rect(4, 5, 8, 6)
-    m.poly([(3, 0), (9, 0), (8, 4), (4, 4)])
+    m.poly([(6, 0), (9, 2.4), (6, 4.6), (3, 2.4)])
 
 
 def i_rp(m: Mask) -> None:
-    # compass: ring + needle
-    m.ring(6.0, 6.8, 6.0, w=2)
-    m.poly([(6, 0.5), (8.2, 6.4), (6, 12.5), (3.8, 6.4)])
+    # la bàn: vành + kim kim cương
+    m.ring(6.0, 6.8, 5.8, w=2)
+    m.poly([(6, 2.2), (7.8, 6.8), (6, 11.4), (4.2, 6.8)])
 
 
 def i_mail(m: Mask) -> None:
+    # phong bì: thân + nắp V khắc mở
     m.rect(0, 3, 12, 10)
     m.hole_line(1, 3, 6, 7)
     m.hole_line(11, 3, 6, 7)
 
 
 def i_ally(m: Mask) -> None:
-    # alliance: two interlocking rings (reads as "link/party" at 9 px;
-    # the literal handshake silhouette turns to mush below 12 px)
-    m.ring(4.4, 7.0, 3.5, w=2)
-    m.ring(8.6, 7.0, 3.5, w=2)
-    m.hole(6, 3, 6, 4)          # break the back ring above the crossing
-    m.hole(6, 10, 6, 10)        # and below it
+    # liên minh: hai vòng móc nhau, vòng sau bị chặn ở hai mặt cắt
+    m.ring(4.2, 7.0, 3.5, w=2)
+    m.ring(8.8, 7.0, 3.5, w=2)
+    m.hole(6, 3, 6, 4)
+    m.hole(6, 10, 6, 10)
 
 
 def i_kill(m: Mask) -> None:
-    m.disc(6.0, 5.2, 5.4)
+    # đầu lâu: sọ tròn, hàm, hai hốc mắt + răng
+    m.disc(6.0, 5.0, 5.4)
     m.rect(3, 9, 9, 12)
     m.hole(3, 12, 3, 12)
     m.hole(9, 12, 9, 12)
@@ -529,13 +584,14 @@ def i_kill(m: Mask) -> None:
 
 
 def i_back(m: Mask) -> None:
-    # curved back arrow: quarter ring, head on the left, tail down
+    # mũi tên cong: cung trái, đầu nhọn, đuôi đổ xuống
     m.arc(8, 8.5, 5.0, 90, 180, w=2)
     m.tri((0, 8), (5, 4), (5, 12))
-    m.vbar(8, 8, 12, w=2)
+    m.vbar(8, 8, 13, w=2)
 
 
 def i_bag(m: Mask) -> None:
+    # ba lô: quai xách, thân bo góc, nắp và khóa
     m.vbar(3, 0, 3, w=1)
     m.vbar(9, 0, 3, w=1)
     m.rect(1, 3, 11, 12)
@@ -549,6 +605,7 @@ def i_bag(m: Mask) -> None:
 
 
 def i_bed(m: Mask) -> None:
+    # giường: đầu giường cao, nệm, hai chân
     m.rect(0, 2, 2, 11)
     m.rect(2, 7, 12, 9)
     m.rect(3, 5, 6, 6)
@@ -557,6 +614,7 @@ def i_bed(m: Mask) -> None:
 
 
 def i_chest(m: Mask) -> None:
+    # rương: nắp khe hở, thân, khoá giữa
     m.rect(1, 2, 11, 5)
     m.hole(1, 2, 1, 2)
     m.hole(11, 2, 11, 2)
@@ -611,7 +669,7 @@ def i_clock(m: Mask) -> None:
 
 
 def i_lock(m: Mask) -> None:
-    m.ring(6.0, 5.0, 3.2, w=2)
+    m.ring(6.0, 4.6, 3.2, w=2)
     m.hole(6, 4, 6, 5)
     m.rect(1, 5, 11, 11)
     m.hole(1, 5, 1, 5)
@@ -626,12 +684,12 @@ def i_mail_verify(m: Mask) -> None:
     m.rect(0, 2, 12, 10)
     m.hole_line(1, 2, 5, 6)
     m.hole_line(11, 2, 6, 6)
-    m.hole_line(4, 7, 6, 9, w=2)
-    m.hole_line(6, 9, 11, 4, w=2)
+    m.hole_line(3, 7, 5, 9, w=2)
+    m.hole_line(5, 9, 10, 4, w=2)
 
 
 def i_warn(m: Mask) -> None:
-    m.tri((6, 0), (12.4, 12.6), (-0.4, 12.6))
+    m.tri((6, 0), (13, 13), (-1, 13))
     m.vbar(5, 4, 8, w=2)
     m.hole(5, 10, 6, 11)
 
@@ -673,10 +731,9 @@ def i_search(m: Mask) -> None:
 
 
 def i_sort(m: Mask) -> None:
-    # single double-headed vertical arrow: legible at 9 px, distinct from arrow-l/r
-    m.tri((2, 0), (10, 0), (6, 4))
-    m.rect(5, 3, 7, 10)
-    m.tri((2, 13), (10, 13), (6, 9))
+    m.tri((1, 0), (11, 0), (6, 5))
+    m.rect(5, 4, 7, 9)
+    m.tri((1, 13), (11, 13), (6, 8))
 
 
 def i_plus(m: Mask) -> None:
@@ -691,16 +748,14 @@ def i_minus(m: Mask) -> None:
 def i_crown(m: Mask) -> None:
     m.stamp([
         "#...........#",
-        "##....#....##",
-        "###...#...###",
+        "##.........##",
         "###..###..###",
-        "####.#.#.####",
         "#############",
         "#############",
         "##o###o###o##",
         "#############",
         "#############",
-    ], oy=2)
+    ], oy=3)
 
 
 def _badge(m: Mask, top: int = 0) -> None:
@@ -749,6 +804,84 @@ def i_tier4(m: Mask) -> None: _tier("IV")(m)
 def i_tier5(m: Mask) -> None: _tier("V", crown=True)(m)
 
 
+# ---- 6 icon mới U+E030..U+E035 (NN5) ---------------------------------------
+
+def i_book(m: Mask) -> None:
+    # sổ tay mở: hai trang xòe, sống giữa hở, khe trang khắc
+    m.poly([(0, 3), (5, 1), (5, 11), (0, 13)])
+    m.poly([(12, 3), (7, 1), (7, 11), (12, 13)])
+    m.hole(2, 4, 4, 4)
+    m.hole(8, 4, 10, 4)
+    m.hole(2, 6, 4, 6)
+    m.hole(8, 6, 10, 6)
+    m.hole(2, 8, 4, 8)
+    m.hole(8, 8, 10, 8)
+
+
+def i_sell(m: Mask) -> None:
+    # thẻ giá mũi trái + lỗ dây; hai vạch chuyển động bên phải
+    m.poly([(11, 2), (4, 2), (1, 6.5), (4, 11), (11, 11)])
+    m.hole(8, 5, 9, 6)
+    m.rect(12, 4, 12, 5)
+    m.rect(12, 8, 12, 9)
+
+
+def i_friendly(m: Mask) -> None:
+    # hai trái tim chồng mép (đấu tập thân thiện)
+    m.stamp([
+        ".##.##.",
+        "#######",
+        "#######",
+        ".#####.",
+        "..###..",
+        "...#...",
+    ], ox=0, oy=6)
+    m.stamp([
+        ".##.##.",
+        "#######",
+        ".#####.",
+        "..###..",
+        "...#...",
+    ], ox=6, oy=0)
+
+
+def i_shop(m: Mask) -> None:
+    # cửa hàng: mái sạp bao quanh + thân, cửa đi
+    m.rect(0, 1, 12, 3)
+    m.hole(1, 3, 1, 3)
+    m.hole(4, 3, 4, 3)
+    m.hole(7, 3, 7, 3)
+    m.hole(10, 3, 10, 3)
+    m.rect(1, 4, 11, 13)
+    m.hole(5, 9, 7, 13)
+    m.hole(2, 6, 3, 7)
+
+
+def i_chat_tag(m: Mask) -> None:
+    # bong bóng chat + sao khắc (tag đặc biệt)
+    m.rect(0, 2, 12, 9)
+    m.hole(0, 2, 0, 2)
+    m.hole(12, 2, 12, 2)
+    m.hole(0, 9, 0, 9)
+    m.poly([(2, 9), (6, 9), (2, 13)])
+    m.hole_star(6.0, 5.4, 2.4, 1.0)
+
+
+def i_worldtime(m: Mask) -> None:
+    # mặt trời + kim giờ: quỹ đạo thế giới
+    m.disc(6.0, 6.8, 4.2)
+    m.hole(6, 4, 6, 6)
+    m.hole(6, 6, 8, 6)
+    m.vbar(6, 0, 1, w=1)
+    m.vbar(6, 13, 13, w=1)
+    m.hbar(0, 6, 1, 7)
+    m.hbar(11, 6, 12, 7)
+    m.set(2, 2)
+    m.set(10, 2)
+    m.set(2, 11)
+    m.set(10, 11)
+
+
 ICON_DRAW = {
     "tps": i_tps, "ping": i_ping, "online": i_online, "bounty": i_bounty,
     "cash": i_cash, "coin": i_coin, "sword": i_sword, "shield": i_shield,
@@ -763,22 +896,24 @@ ICON_DRAW = {
     "sort": i_sort, "plus": i_plus, "minus": i_minus, "crown": i_crown,
     "tier1": i_tier1, "tier2": i_tier2, "tier3": i_tier3, "tier4": i_tier4,
     "tier5": i_tier5,
+    "book": i_book, "sell": i_sell, "friendly": i_friendly, "shop": i_shop,
+    "chat-tag": i_chat_tag, "worldtime": i_worldtime,
 }
 
 
 def compose_icon(mask: Mask) -> Image.Image:
     """White fill + 1px black 8-neighbour ring on a 16x16 cell, binary alpha."""
-    fill = [[0] * CELL for _ in range(CELL)]
+    fill = [[0] * ICELL for _ in range(ICELL)]
     ox, oy = ICON_OFFSET
     for y in range(ICON_H):
         for x in range(ICON_W):
             if mask.px[y][x]:
                 fill[y + oy][x + ox] = 1
 
-    img = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
+    img = Image.new("RGBA", (ICELL, ICELL), (0, 0, 0, 0))
     px = img.load()
-    for y in range(CELL):
-        for x in range(CELL):
+    for y in range(ICELL):
+        for x in range(ICELL):
             if fill[y][x]:
                 px[x, y] = (255, 255, 255, 255)
             else:
@@ -786,27 +921,27 @@ def compose_icon(mask: Mask) -> Image.Image:
                 for dy in (-1, 0, 1):
                     for dx in (-1, 0, 1):
                         yy, xx = y + dy, x + dx
-                        if 0 <= yy < CELL and 0 <= xx < CELL and fill[yy][xx]:
+                        if 0 <= yy < ICELL and 0 <= xx < ICELL and fill[yy][xx]:
                             ring = True
                 if ring:
                     px[x, y] = (0, 0, 0, 255)
-    if not any(px[x, y][3] for x in range(CELL) for y in range(CELL)):
+    if not any(px[x, y][3] for x in range(ICELL) for y in range(ICELL)):
         raise SystemExit("empty icon mask")
     return img
 
 
 def build_icon_atlas(icons: list[dict]) -> tuple[Image.Image, dict]:
-    atlas = Image.new("RGBA", (ICON_COLS * CELL, ICON_ROWS * CELL), (0, 0, 0, 0))
+    atlas = Image.new("RGBA", (ICON_COLS * ICELL, ICON_ROWS * ICELL), (0, 0, 0, 0))
     metrics: dict[str, dict] = {}
     for i, icon in enumerate(icons):
         mask = Mask()
         ICON_DRAW[icon["id"]](mask)
         img = compose_icon(mask)
         row, col = divmod(i, ICON_COLS)
-        atlas.alpha_composite(img, (col * CELL, row * CELL))
+        atlas.alpha_composite(img, (col * ICELL, row * ICELL))
         img.save(TEX_ICON / f"{icon['id']}.png")
         iw = ink_width(img)
-        adv = round_half_up(iw * (9.0 / CELL)) + 1 if iw else 0
+        adv = round_half_up(iw * (9.0 / ICELL)) + 1 if iw else 0
         metrics[icon["id"]] = {"ink_w": iw, "advance9": adv, "row": row, "col": col}
     return atlas, metrics
 
@@ -846,7 +981,7 @@ def default_font_json(text_rows: list[str]) -> dict:
     return {
         "providers": [
             {"type": "bitmap", "file": "nomnom:font/vi_text.png",
-             "height": CELL, "ascent": BASELINE, "chars": text_rows},
+             "height": CELL_H, "ascent": BASELINE, "chars": text_rows},
             {"type": "reference", "id": "minecraft:include/space"},
             {"type": "reference", "id": "minecraft:include/default",
              "filter": {"uniform": False}},
@@ -874,6 +1009,9 @@ def verify(log: list[str], expect_icons: list[dict]) -> dict:
     assert mc_doc == alias_doc, "nomnom:default alias differs from the override"
     assert len(mc_doc["providers"][0]["chars"]) == TEXT_ROWS
     assert all(len(r) == TEXT_COLS for r in mc_doc["providers"][0]["chars"])
+    assert mc_doc["providers"][0]["height"] == CELL_H
+    assert mc_doc["providers"][0]["ascent"] == BASELINE
+    assert BASELINE <= CELL_H
 
     # ---- text glyphs
     text_rows = mc_doc["providers"][0]["chars"]
@@ -891,7 +1029,7 @@ def verify(log: list[str], expect_icons: list[dict]) -> dict:
 
     atlas = Image.open(TEX_FONT / "vi_text.png").convert("RGBA")
     res["text_atlas_size"] = list(atlas.size)
-    assert atlas.size == (TEXT_COLS * CELL, TEXT_ROWS * CELL)
+    assert atlas.size == (TEXT_COLS * CELL_W, TEXT_ROWS * CELL_H)
     alpha = atlas.getchannel("A")
     res["text_atlas_ink_px"] = sum(alpha.histogram()[1:])
     assert res["text_atlas_ink_px"] > 0, "text atlas is empty"
@@ -900,7 +1038,7 @@ def verify(log: list[str], expect_icons: list[dict]) -> dict:
     empty_cells = []
     for i, cp in enumerate(text_cps):
         row, col = divmod(i, TEXT_COLS)
-        cell = atlas.crop((col * CELL, row * CELL, col * CELL + CELL, row * CELL + CELL))
+        cell = atlas.crop((col * CELL_W, row * CELL_H, col * CELL_W + CELL_W, row * CELL_H + CELL_H))
         if cell.getchannel("A").getbbox() is None:
             empty_cells.append(hex_cp(cp))
     res["text_empty_cells"] = empty_cells
@@ -911,28 +1049,36 @@ def verify(log: list[str], expect_icons: list[dict]) -> dict:
     assert ui_doc["providers"][0]["height"] == 9
     assert ui_doc["providers"][0]["ascent"] == 9
     assert len(icon_rows) == ICON_ROWS and all(len(r) == ICON_COLS for r in icon_rows)
-    icon_cps = [ord(c) for r in icon_rows for c in r]
+    icon_cps = [ord(c) for r in icon_rows for c in r if c != "\u0000"]
     res["icon_codepoints"] = len(icon_cps)
-    res["icon_contiguous"] = icon_cps == list(range(0xE000, 0xE030))
-    assert res["icon_codepoints"] == 48 and res["icon_contiguous"]
-    assert len(set(icon_cps)) == 48
+    res["icon_contiguous"] = icon_cps == list(range(0xE000, 0xE000 + len(icon_cps)))
+    res["icon_range"] = f"U+E000..U+{0xE000 + len(icon_cps) - 1:04X}"
+    assert res["icon_contiguous"]
+    assert len(set(icon_cps)) == len(icon_cps)
 
     # manifest and JSON must agree, codepoint for codepoint
     manifest_cps = [int(x["cp"][2:], 16) for x in expect_icons]
-    assert manifest_cps == icon_cps, "nn4-icons.json order != ui.json chars grid"
+    assert manifest_cps == icon_cps, "icons-nn5.json order != ui.json chars grid"
+
+    # v1.0 compat: first 48 codepoints must match nn4-icons.json exactly
+    v1 = json.loads(ICON_JSON_V1.read_text(encoding="utf-8"))
+    v1_cps = [int(x["cp"][2:], 16) for x in v1["icons"]]
+    v1_ids = [x["id"] for x in v1["icons"]]
+    assert manifest_cps[:48] == v1_cps[:48], "v1 codepoints drifted (E000..E02F must stay stable)"
+    assert [x["id"] for x in expect_icons][:48] == v1_ids[:48], "v1 icon ids drifted"
 
     icon_atlas = Image.open(TEX_FONT / "icons.png").convert("RGBA")
     res["icon_atlas_size"] = list(icon_atlas.size)
-    assert icon_atlas.size == (ICON_COLS * CELL, ICON_ROWS * CELL)
+    assert icon_atlas.size == (ICON_COLS * ICELL, ICON_ROWS * ICELL)
     blank = []
     for i, icon in enumerate(expect_icons):
         row, col = divmod(i, ICON_COLS)
-        cell = icon_atlas.crop((col * CELL, row * CELL, col * CELL + CELL, row * CELL + CELL))
+        cell = icon_atlas.crop((col * ICELL, row * ICELL, col * ICELL + ICELL, row * ICELL + ICELL))
         colors = cell.getcolors(maxcolors=32) or []
         if len(colors) <= 1:
             blank.append(icon["id"])
         # right-most column must stay empty so advance == 9 for full-width icons
-        right_col = [cell.getpixel((CELL - 1, y))[3] for y in range(CELL)]
+        right_col = [cell.getpixel((ICELL - 1, y))[3] for y in range(ICELL)]
         if any(right_col):
             blank.append(icon["id"] + "(right-margin)")
     res["icon_blank"] = blank
@@ -956,11 +1102,11 @@ ICON_ALIASES = {"confirm": "check", "cancel": "cross"}
 
 
 def vertical_metrics(atlas: Image.Image, glyphs: list[dict]) -> dict:
-    """Ink extents drive the line-height risk documented in nn4-decisions-font.md."""
+    """Ink extents drive the line-height risk documented in nn5-decisions-rp.md."""
     tops, bots, desc = [], [], 0
     for g in glyphs:
-        cell = atlas.crop((g["col"] * CELL, g["row"] * CELL,
-                           g["col"] * CELL + CELL, g["row"] * CELL + CELL)).getchannel("A")
+        cell = atlas.crop((g["col"] * CELL_W, g["row"] * CELL_H,
+                           g["col"] * CELL_W + CELL_W, g["row"] * CELL_H + CELL_H)).getchannel("A")
         bb = cell.getbbox()
         if not bb:
             continue
@@ -973,14 +1119,14 @@ def vertical_metrics(atlas: Image.Image, glyphs: list[dict]) -> dict:
         "ink_top_min": top_min,
         "ink_bottom_max": bot_max,
         "descenders": desc,
-        "above_cap": sum(1 for t in tops if t < 5),
+        "above_cap": sum(1 for t in tops if t < BASELINE - 9),
         "worst_line_overlap_px": bot_max - (top_min + 9),   # client Font.lineHeight = 9
     }
 
 
 # ======================================================================== manifest
 def write_charset_tsv(glyphs: list[dict], icons: list[dict], metrics: dict) -> None:
-    lines = ["# cp\tchar\tkind\trow\tcol\tink_w\tadvance_16px\tadvance_9px\tnote"]
+    lines = ["# cp\tchar\tkind\trow\tcol\tink_w\tadvance_20px\tadvance_9px\tnote"]
     for g in glyphs:
         ch = g["char"]
         lines.append("\t".join([
@@ -997,9 +1143,9 @@ def write_charset_tsv(glyphs: list[dict], icons: list[dict], metrics: dict) -> N
     (FONT_ASSETS / "charset.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
-def font_info(res: dict, glyphs: list[dict]) -> str:
-    return f"""NomNom UI Text / NomNom UI Icons
-================================
+def font_info(res: dict) -> str:
+    return f"""NomNom UI Text / NomNom UI Icons (NN5 rebuild)
+=============================================
 Family          : NomNom UI Text (derived from Be Vietnam Pro)
 Upstream        : https://github.com/bettergui/BeVietnamPro
 Source file     : BeVietnamPro-Regular.ttf  ({sha256(TTF_REGULAR)})
@@ -1008,10 +1154,12 @@ License         : SIL Open Font License 1.1 - see ../../../LICENSE-OFL.txt (verb
                   "NomNom UI Text" is a derivative; no Reserved Font Name is claimed by upstream.
 
 TEXT FONT (provider id minecraft:default, override at assets/minecraft/font/default.json)
-  Grid          : {TEXT_COLS}x{TEXT_ROWS} cells of {CELL}x{CELL} px = {TEXT_COLS*CELL}x{TEXT_ROWS*CELL} px  (nomnom:font/vi_text.png)
-  Rasterisation : FreeType via Pillow, {SUPERSAMPLE}x supersample (em {SS_EM:.2f} px, baseline {SS_BASELINE} px),
-                  LANCZOS downscale to {CELL}x{CELL}, alpha < {ALPHA_CUTOFF} -> 0, white RGB for text tinting.
-  Baseline      : {BASELINE} px from cell top (provider "ascent": {BASELINE}, "height": {CELL})
+  Grid          : {TEXT_COLS}x{TEXT_ROWS} cells of {CELL_W}x{CELL_H} px = {TEXT_COLS*CELL_W}x{TEXT_ROWS*CELL_H} px  (nomnom:font/vi_text.png)
+  Rasterisation : FreeType via Pillow, rendered DIRECTLY at final size (em {EM_PX} px, hinted —
+                  no supersample/downscale like v1.0), baseline {BASELINE} px, then contrast
+                  curve alpha {ALPHA_LOW}..{ALPHA_HIGH} -> 0..255 (cuts halo, keeps edge AA).
+                  White RGB for text tinting.
+  Baseline      : {BASELINE} px from cell top (provider "ascent": {BASELINE}, "height": {CELL_H})
   Codepoints    : {res.get('text_glyphs', 0)} text glyphs
   Vietnamese    : {res.get('vi_total', 0)}/{res.get('vi_total', 0)} precomposed characters
                   (12 vowels x 6 tones, upper+lower, + d/D)
@@ -1023,15 +1171,23 @@ TEXT FONT (provider id minecraft:default, override at assets/minecraft/font/defa
                   combining marks, CJK). Do not remove those references.
 
 ICON FONT (provider id nomnom:ui, assets/nomnom/font/ui.json)
-  Grid          : {ICON_COLS}x{ICON_ROWS} cells of {CELL}x{CELL} px = {ICON_COLS*CELL}x{ICON_ROWS*CELL} px  (nomnom:font/icons.png)
-  Range         : U+E000..U+E02F, 48 glyphs, private use area only
+  Grid          : {ICON_COLS}x{ICON_ROWS} cells of {ICELL}x{ICELL} px = {ICON_COLS*ICELL}x{ICON_ROWS*ICELL} px  (nomnom:font/icons.png)
+  Range         : U+E000..U+E035, {res.get('icon_codepoints', 0)} glyphs, private use area only
+                  (U+E000..U+E02F byte-stable vs v1.0; U+E030..U+E035 added in NN5:
+                  book, sell, friendly, shop, chat-tag, worldtime)
   Provider      : height 9, ascent 9 -> rendered 9 px tall, proportional advance
   Art           : white #FFFFFF fill + 1 px black #000000 ring, binary alpha, 13x14 fill mask
                   inset 1 px in a 16x16 cell (column 15 stays transparent -> advance 9)
   Referenced by : minecraft:default, so legacy section-sign strings render PUA icons too
-  Registry      : work/nn4-icons.json (id, codepoint, ASCII fallback); aliases confirm=check, cancel=cross
+  Registry      : work/rp_build/icons-nn5.json (id, codepoint, ASCII fallback);
+                  aliases confirm=check, cancel=cross
 
-Generated by work/rp_build/build_font.py - do not hand edit.
+HUD PACK (NomNomUI-HUD, font id nomnom:hud — see work/rp_build/hud_src/HUD-INFO.txt)
+  Pack phụ cho sidebar/tablist: digits fixed-width U+E040.., ornament/khung U+E050..
+  Pack này KHÔNG đóng gói font text; override default.json của nó tham chiếu chéo
+  nomnom:font/vi_text.png (nếu pack chính vắng mặt, chữ rơi về fallback vanilla).
+
+Generated by work/rp_build/build_font.py (NN5) - do not hand edit.
 """
 
 
@@ -1039,32 +1195,31 @@ Generated by work/rp_build/build_font.py - do not hand edit.
 def write_previews(glyphs: list[dict], icons: list[dict], metrics: dict) -> None:
     # icons at 8x with labels
     scale, pad, label_h = 8, 6, 12
-    cw = CELL * scale + pad
+    cw = ICELL * scale + pad
     cols = 8
     rows = (len(icons) + cols - 1) // cols
     sheet = Image.new("RGB", (cols * cw + pad, rows * (cw + label_h) + pad), (18, 24, 33))
     d = ImageDraw.Draw(sheet)
     try:
-        fnt = ImageFont.truetype(str(TTF_REGULAR), 11)
         fnt_s = ImageFont.truetype(str(TTF_REGULAR), 8)
     except Exception:                                     # pragma: no cover
-        fnt = fnt_s = ImageFont.load_default()
+        fnt_s = ImageFont.load_default()
     for i, icon in enumerate(icons):
         r, c = divmod(i, cols)
         x = pad + c * cw
         y = pad + r * (cw + label_h)
         img = Image.open(TEX_ICON / f"{icon['id']}.png").convert("RGBA")
-        big = img.resize((CELL * scale, CELL * scale), Image.NEAREST)
+        big = img.resize((ICELL * scale, ICELL * scale), Image.NEAREST)
         bg = Image.new("RGBA", big.size, (18, 24, 33, 255))
         bg.alpha_composite(big)
         sheet.paste(bg.convert("RGB"), (x, y))
-        d.text((x + 2, y + CELL * scale + 1),
+        d.text((x + 2, y + ICELL * scale + 1),
                f"{icon['cp']} {icon['id']} a={metrics[icon['id']]['advance9']}",
                font=fnt_s, fill=(154, 164, 178))
         small = img.resize((9, 9), Image.NEAREST)
         sb = Image.new("RGBA", (9, 9), (18, 24, 33, 255))
         sb.alpha_composite(small)
-        sheet.paste(sb.convert("RGB"), (x + CELL * scale - 11, y + 1))
+        sheet.paste(sb.convert("RGB"), (x + ICELL * scale - 11, y + 1))
     sheet.save(HERE / "preview_icons.png")
 
     # true-size simulation: each icon at the 9 px render height, upscaled 6x,
@@ -1101,24 +1256,25 @@ def write_previews(glyphs: list[dict], icons: list[dict], metrics: dict) -> None
     atlas = Image.open(TEX_FONT / "vi_text.png").convert("RGBA")
     cells = {}
     for g in glyphs:
-        cells[g["cp"]] = (g, atlas.crop((g["col"] * CELL, g["row"] * CELL,
-                                         g["col"] * CELL + CELL, g["row"] * CELL + CELL)))
+        cells[g["cp"]] = (g, atlas.crop((g["col"] * CELL_W, g["row"] * CELL_H,
+                                         g["col"] * CELL_W + CELL_W, g["row"] * CELL_H + CELL_H)))
     # only codepoints that live in this atlas; everything else (em dash, ₫, ✦, ⚔)
     # is served by the vanilla fallback providers, see work/nn4-decisions-font.md
     line = "Tiếng Việt: Ế ộ ữ ự ỹ - Nhà bán đất #123, giá 1.250.000 (OK)"
     x = 0
-    strip = Image.new("RGBA", (1600, 24), (18, 24, 33, 255))
+    strip = Image.new("RGBA", (2200, 26), (18, 24, 33, 255))
     for ch in line:
         if ch == " ":
-            x += 4
+            x += 5
             continue
         if ord(ch) not in cells:
+            x += 8
             continue
         g, cell = cells[ord(ch)]
-        strip.alpha_composite(cell, (x, 4))
+        strip.alpha_composite(cell, (x, 2))
         x += g["advance"]
-    strip = strip.crop((0, 0, max(x + 8, 1), 24)).resize((max(x + 8, 1) * 3, 72), Image.NEAREST)
-    strip.convert("RGB").save(HERE / "preview_text.png")
+    strip = strip.crop((0, 0, max(x + 8, 1), 26))
+    strip.convert("RGB").resize((strip.width * 3, 78), Image.NEAREST).save(HERE / "preview_text.png")
 
 
 # ============================================================================ main
@@ -1145,13 +1301,13 @@ def main() -> int:
 
         meta = json.loads(ICON_JSON.read_text(encoding="utf-8"))
         icons = meta["icons"]
-        if len(icons) != 48:
-            raise SystemExit(f"nn4-icons.json has {len(icons)} icons, expected 48")
+        if len(icons) != 54:
+            raise SystemExit(f"icons-nn5.json has {len(icons)} icons, expected 54")
         unknown = [i["id"] for i in icons if i["id"] not in ICON_DRAW]
         if unknown:
             raise SystemExit(f"no painter for: {unknown}")
         if set(ICON_DRAW) != {i["id"] for i in icons}:
-            raise SystemExit("ICON_DRAW has entries not present in nn4-icons.json")
+            raise SystemExit("ICON_DRAW has entries not present in icons-nn5.json")
 
         # --- text
         text_atlas, glyphs, cps = build_text_atlas(log)
@@ -1185,21 +1341,19 @@ def main() -> int:
         "vietnamese": f"{res['vi_total'] - len(res['vi_missing'])}/{res['vi_total']}",
         "icons": res["icon_codepoints"],
         "icon_atlas": res["icon_atlas_size"],
-        "icon_range": "U+E000..U+E02F",
+        "icon_range": res["icon_range"],
         "default_refs": res["default_refs"],
     }
 
     # FONT-INFO carries the measured coverage, so it is written after verification
     if not args.verify_only:
-        (FONT_ASSETS / "FONT-INFO.txt").write_text(
-            font_info({"text_glyphs": res["text_glyphs"], "vi_total": res["vi_total"]}, []),
-            encoding="utf-8", newline="\n")
+        (FONT_ASSETS / "FONT-INFO.txt").write_text(font_info(res), encoding="utf-8", newline="\n")
 
-    print("== NomNom font build ==")
+    print("== NomNom font build (NN5) ==")
     for k, v in info.items():
         print(f"  {k:14}: {v}")
 
-    # vertical metrics are design-relevant (line-height 9 px vs a 16 px cell)
+    # vertical metrics are design-relevant (line-height 9 px vs a 20 px cell)
     atlas_disk = Image.open(TEX_FONT / "vi_text.png").convert("RGBA")
     cps_disk = [ord(c) for r in json.loads(
         (MC_FONT / "default.json").read_text(encoding="utf-8"))["providers"][0]["chars"]
@@ -1213,16 +1367,16 @@ def main() -> int:
             print("  " + line)
 
     # --- char -> icon table (the one the task asks the build to print)
-    print("\n== char -> icon (nomnom:ui, U+E000..U+E02F) ==")
+    print("\n== char -> icon (nomnom:ui, U+E000..U+E035) ==")
     print(f"{'CP':7} {'char':5} {'id':12} {'ascii':5} {'label':9} {'ink':>3} {'adv9':>4}")
     meta_by_id = {i["id"]: i for i in icons}
     metrics = {}
     icon_atlas = Image.open(TEX_FONT / "icons.png").convert("RGBA")
     for i, icon in enumerate(icons):
         row, col = divmod(i, ICON_COLS)
-        cell = icon_atlas.crop((col * CELL, row * CELL, col * CELL + CELL, row * CELL + CELL))
+        cell = icon_atlas.crop((col * ICELL, row * ICELL, col * ICELL + ICELL, row * ICELL + ICELL))
         iw = ink_width(cell)
-        adv = round_half_up(iw * 9.0 / CELL) + 1 if iw else 0
+        adv = round_half_up(iw * 9.0 / ICELL) + 1 if iw else 0
         metrics[icon["id"]] = adv
         print(f"{icon['cp']:7} {chr(int(icon['cp'][2:], 16)):5} {icon['id']:12} "
               f"{icon['ascii']:5} {icon['label']:9} {iw:3} {adv:4}")

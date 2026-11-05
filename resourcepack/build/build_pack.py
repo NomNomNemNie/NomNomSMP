@@ -377,8 +377,8 @@ def zip_stage(stage: Path, out_zip: Path) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Đóng gói NomNom UI resource pack")
-    ap.add_argument("--version", default="1.0.0")
-    ap.add_argument("--out", default=str(BUILD_DIR / "dist" / "NomNomUI-v1.0.0.zip"))
+    ap.add_argument("--version", default="1.1.0")
+    ap.add_argument("--out", default=str(BUILD_DIR / "dist" / "NomNomUI-v1.1.0.zip"))
     ap.add_argument("--weapons", default=str(DEFAULT_WEAPONS))
     ap.add_argument("--ui-src", default=str(UI_SRC),
                     help="thư mục nguồn UI (mặc định work/rp_src)")

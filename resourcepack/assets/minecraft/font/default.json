@@ -3,8 +3,8 @@
     {
       "type": "bitmap",
       "file": "nomnom:font/vi_text.png",
-      "height": 16,
-      "ascent": 13,
+      "height": 20,
+      "ascent": 16,
       "chars": [
         "!\"#$%&'()*+,-./0",
         "123456789:;<=>?@",

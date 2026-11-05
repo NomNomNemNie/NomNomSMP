@@ -1,0 +1,11 @@
+{
+  "pack": "NomNomUI-HUD",
+  "version": "1.0.0",
+  "pack_format": 75,
+  "build_time": "2026-11-05T19:07:51Z",
+  "output": "dist\\NomNomUI-HUD-v1.0.0.zip",
+  "files": 11,
+  "bytes": 12440,
+  "sha1": "e5ba4876cf7c68bfc52a858ac8650df2b28bfb41",
+  "sha256": "b93db1fbc60c023ce300127d829f2e261527ef21e021287561ae6934cd0ddd81"
+}
