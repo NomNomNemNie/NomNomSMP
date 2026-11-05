@@ -15,3 +15,4 @@ resourcepack/build/preview_*.png
 .DS_Store
 Thumbs.db
 desktop.ini
+.emit_cred*
