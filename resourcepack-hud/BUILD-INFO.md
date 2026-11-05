@@ -9,7 +9,7 @@
 | Kích thước | 12.422 bytes |
 | `pack_format` | 75 (resource pack 1.21.11) |
 | SHA-1 | `e5ba4876cf7c68bfc52a858ac8650df2b28bfb41` |
-| SHA-256 | `87e22c1e6c5da67e8f88088dd0fe26b743f5cb229707b9b971e9efd319e44348` |
+| SHA-256 | `b93db1fbc60c023ce300127d829f2e261527ef21e021287561ae6934cd0ddd81` |
 
 ## Nội dung
 

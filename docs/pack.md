@@ -10,7 +10,7 @@ Release: https://github.com/NomNomNemNie/NomNomSMP/releases/tag/v1.1.0
 | Kích thước | 138.392 bytes | 12.422 bytes |
 | Số file | 275 (161 PNG, 107 JSON, 22 weapons) | 11 (3 PNG, 3 JSON) |
 | SHA-1 | `d964fee394ba840c92ea86464589436da38cfae9` | `e5ba4876cf7c68bfc52a858ac8650df2b28bfb41` |
-| SHA-256 | `b9f67c4df05933d17c757a37a26119fb467f424ce9d1cfc68964ee62e2ace177` | `87e22c1e6c5da67e8f88088dd0fe26b743f5cb229707b9b971e9efd319e44348` |
+| SHA-256 | `b9f67c4df05933d17c757a37a26119fb467f424ce9d1cfc68964ee62e2ace177` | `b93db1fbc60c023ce300127d829f2e261527ef21e021287561ae6934cd0ddd81` |
 | `pack_format` | 75 | 75 |
 
 Validate: `validate_font.py` PASS (30 check, 146/146 tiếng Việt), `validate_pack.py`
