@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Đóng gói NomNomUI-HUD resource pack (Paper 1.21.11) — pack RIÊNG sidebar/tablist.
+"""Pack NomNomUI-HUD resource pack (Paper 1.21.11) — separate sidebar/tablist pack.
 
-NN5 A3: pack thứ hai, tách khỏi NomNomUI. Chỉ chứa:
-  - font nomnom:hud (digits fixed-width + ornament + khung, PUA U+E040..U+E05D)
-  - bản copy byte-identical của nomnom:ui (ui.json + icons.png) để icon chạy
-    độc lập với thứ tự cài pack
-  - override minecraft:default có thêm reference nomnom:hud (superset của pack
-    chính — tham chiếu chéo nomnom:font/vi_text.png, thiếu pack chính thì chữ
-    rơi về fallback vanilla, không vỡ)
-KHÔNG chứa: vi_text.png, gui textures, item models, weapons.
+NN6 A2: second pack, split from NomNomUI. Contains ONLY:
+  - font nomnom:hud (fixed-width digits 0-9 . , k M T + ms at U+E040..U+E04F,
+    uniform 9 px advance, cell 16x16 height 9 / ascent 9; ornaments + frames
+    U+E050..U+E05D; atlas 128x64)
+  - byte-identical copy of nomnom:ui (ui.json + icons.png) so icons work
+    regardless of pack install order
+  - minecraft:default override = the NN6 A1 chain plus a reference nomnom:hud
+    ([space, include/default(uniform=false), nomnom:ui, nomnom:hud, unifont]).
+    NO vi_text reference anywhere (A1 dropped the custom text font).
+Contains NO: vi_text.png, gui textures, item models, weapons.
 
-Zip deterministic: sort tên, timestamp cố định, compresslevel 9.
+Zip is deterministic: sorted names, fixed timestamp, compresslevel 9.
 
-Chạy:
+Usage:
   python work/rp_build/build_hud_pack.py
-  python work/rp_build/build_hud_pack.py --version 1.0.0 --out work/rp_build/dist/NomNomUI-HUD-v1.0.0.zip
+  python work/rp_build/build_hud_pack.py --version 1.1.0 --out work/rp_build/dist/NomNomUI-HUD-v1.1.0.zip
 """
 from __future__ import annotations
 
@@ -72,63 +74,70 @@ def make_pack_png() -> bytes:
     return buf.getvalue()
 
 
-README = """# NomNomUI-HUD — resource pack cho sidebar + tablist
+README = """# NomNomUI-HUD — resource pack for the sidebar + tablist
 
-Pack phụ của **NomNom SMP** (Paper 1.21.11), tách khỏi pack chính **NomNomUI**:
-chỉ chứa glyph/ornament/khung căn cột cho scoreboard (sidebar) + tablist.
+Companion pack of **NomNom SMP** (Paper 1.21.11), separate from the main pack
+**NomNomUI**: contains only the column-alignment glyphs/ornaments/frames for the
+scoreboard (sidebar) and tablist.
 
-- Phiên bản: **{version}**
+- Version: **{version}**
 - `pack_format`: **{pack_format}** (resource pack, Minecraft 1.21.11)
-- Font riêng `nomnom:hud` — PUA **U+E040–U+E05D**:
-  - **Digits fixed-width** `0-9 . , k M` (U+E040–U+E04D) — mọi glyph advance 10 px
-    => cột số liệu căn phải TUYỆT ĐỐI (map từng ký tự sau khi padLeft).
-  - Ornament + khung (U+E050–U+E05D): rule 3-mảnh, vbar, row-bg, spark, khung 8-mảnh.
-- Copy byte-identical của font icon `nomnom:ui` (U+E000–U+E035) để icon chạy đúng
-  kể cả khi chỉ cài pack này.
-- Override `minecraft:default` tham chiếu chéo `nomnom:font/vi_text.png` của pack
-  chính — không chứa font text; thiếu pack chính thì chữ rơi về fallback vanilla.
-- Cài cùng lúc cả hai pack: gửi **NomNomUI trước, NomNomUI-HUD sau**
-  (`Player#addResourcePack`) — override của HUD đã chứa ĐỦ provider của pack chính.
-- Chi tiết bảng glyph + cách dùng: `HUD-INFO.txt` trong pack.
+- Own font `nomnom:hud` — PUA **U+E040–U+E05D**:
+  - **Fixed-width digits** `0-9 . , k M T` + `ms` ligature (U+E040–U+E04F) —
+    EVERY glyph advances exactly **9 px** (ink forced into a 15 px box, right
+    edge pinned at atlas column 14) => numeric columns right-align perfectly.
+    Cell **16x16, height 9 / ascent 9** (vanilla scale — one 9 px text line per
+    glyph, no row overlap; the old 20 px cells overlapped by 11 px).
+  - Ornaments + frames (U+E050–U+E05D): 3-piece rule, vbar, row-bg, spark,
+    8-piece one-row frame.
+- Byte-identical copy of the icon font `nomnom:ui` (U+E000–U+E035) so icons work
+  even if only this pack is installed.
+- The `minecraft:default` override is the wave-6 A1 chain — the custom Vietnamese
+  text font (`vi_text`) was dropped from BOTH packs; this pack adds only
+  `nomnom:hud` before `minecraft:include/unifont`.
+- Install both packs together: send **NomNomUI FIRST, NomNomUI-HUD SECOND**
+  (`Player#addResourcePack`) — the HUD override already contains every provider
+  of the main chain, so nothing is lost.
+- Glyph table + number->PUA mapping recipe: `HUD-INFO.md` in this pack.
 
-## Ghi công (bắt buộc)
-- **Be Vietnam Pro** — SIL Open Font License 1.1, xem `LICENSE-OFL.txt`
-  (digits 'k' 'M' và phần cơ cấu font HUD phái sinh từ bản raster hoá).
-- Phần glyph/ornament tự thiết kế: © NomNom SMP 2026.
+## Attribution (required)
+- **Be Vietnam Pro** — SIL Open Font License 1.1, see `LICENSE-OFL.txt`
+  (the `k`/`M`/`T`/`ms` glyphs are raster derivatives of that typeface).
+- Glyph/ornament design: © NomNom SMP 2026.
 """
 
-ATTRIBUTION = """# Ghi công & giấy phép — NomNomUI-HUD
+ATTRIBUTION = """# Attribution & licences — NomNomUI-HUD
 
 ## 1. Font Be Vietnam Pro
 
-| Trường | Giá trị |
+| Field | Value |
 |---|---|
-| Tên font | **Be Vietnam Pro** (Regular 400) |
-| Tác giả | The Be Vietnam Pro Project Authors, Copyright 2021 |
-| Giấy phép | **SIL Open Font License 1.1 (OFL-1.1)** |
-| Nguồn | Google Fonts — `ofl/bevietnampro` |
-| Văn bản giấy phép | `LICENSE-OFL.txt` (kèm trong pack) |
+| Font | **Be Vietnam Pro** (Regular 400) |
+| Author | The Be Vietnam Pro Project Authors, Copyright 2021 |
+| Licence | **SIL Open Font License 1.1 (OFL-1.1)** |
+| Source | Google Fonts — `ofl/bevietnampro` |
+| Licence text | `LICENSE-OFL.txt` (shipped in this pack) |
 
-Bộ digits fixed-width của pack này là dẫn xuất raster hoá từ Be Vietnam Pro
-(ký tự được ép vào hộp 9 px để đồng nhất advance) trong font id `nomnom:hud`.
-OFL cho phép nhúng/phân phối bản raster hoá trong resource pack; không được
-bán font riêng lẻ.
+The fixed-width digit set of this pack is a raster derivative of Be Vietnam Pro
+(characters forced into a 15 px-wide box for a uniform advance) in font id
+`nomnom:hud`. OFL allows embedding/redistribution of rasterized fonts inside a
+resource pack; the font itself must not be sold separately.
 
-## 2. Phần tự thiết kế
+## 2. Original design
 
-Ornament, khung căn cột, bố cục glyph HUD và toàn bộ script đóng gói:
-**© NomNom SMP 2026**. Phát hành kèm server NomNom SMP.
+Ornaments, column-alignment frames, HUD glyph layout and the packaging script:
+**© NomNom SMP 2026**. Released with the NomNom SMP server.
 """
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Đóng gói NomNomUI-HUD resource pack")
-    ap.add_argument("--version", default="1.0.0")
-    ap.add_argument("--out", default=str(DIST / "NomNomUI-HUD-v1.0.0.zip"))
+    ap = argparse.ArgumentParser(description="Pack NomNomUI-HUD resource pack")
+    ap.add_argument("--version", default="1.1.0")
+    ap.add_argument("--out", default=str(DIST / "NomNomUI-HUD-v1.1.0.zip"))
     args = ap.parse_args()
 
     if not (SRC / "assets/nomnom/font/hud.json").is_file():
-        raise SystemExit("thiếu hud_src — chạy build_hud.py trước")
+        raise SystemExit("missing hud_src — run build_hud.py first")
     ui_src = SRC / "assets/nomnom/font/ui.json"
     _here = Path(__file__).resolve()
     # tìm ui.json của pack chính: workspace (work/rp_src) hoặc repo (resourcepack/)
@@ -155,10 +164,10 @@ def main() -> int:
             continue
         rel = p.relative_to(SRC).as_posix().replace("\\", "/")
         top = rel.split("/")[0]
-        # chỉ nhận nội dung pack: assets/** + HUD-INFO.txt. Các file meta
-        # (pack.mcmeta, README, ATTRIBUTION, LICENSE, pack.png) LUÔN sinh lại ở
-        # dưới — loại trừ build/, dist/… khỏi nguồn.
-        if top == "assets" or rel == "HUD-INFO.txt":
+        # only pack content: assets/** + HUD-INFO.md. Meta files (pack.mcmeta,
+        # README, ATTRIBUTION, LICENSE, pack.png) are ALWAYS regenerated below —
+        # build/, dist/... are excluded from the source scan.
+        if top == "assets" or rel == "HUD-INFO.md":
             files.append((rel, p.read_bytes()))
 
     # pack.png sinh tại chỗ (đưa vào trước khi sort — sort theo tên)

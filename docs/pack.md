@@ -1,6 +1,51 @@
 # NomNom UI resource pack — phát hành & cấu trúc
 
-## 0. Bản phát hành v1.1.0 (đợt 5, 2026-11-06) — pack chính + pack HUD
+## 0. Release v1.2.0 (wave 6, 2026-11-07) — A1 font drop + A2 HUD v1.1.0 + A3 light theme
+
+Release: https://github.com/NomNomNemNie/NomNomSMP/releases/tag/v1.2.0
+
+| Field | NomNomUI v1.2.0 | NomNomUI-HUD v1.1.0 |
+|---|---|---|
+| Asset URL | `https://github.com/NomNomNemNie/NomNomSMP/releases/download/v1.2.0/NomNomUI-v1.2.0.zip` | `https://github.com/NomNomNemNie/NomNomSMP/releases/download/v1.2.0/NomNomUI-HUD-v1.1.0.zip` |
+| Size | 136,884 bytes | 13,441 bytes |
+| Files | 275 (161 PNG, 107 JSON, 22 weapons) | 11 (3 PNG, 3 JSON) |
+| SHA-1 | `b46aab6df436d6c463253ecb3b08cf1b3a9b6813` | `2e5f2e4152ef6392d77f8b5df4a55cba6bf99b46` |
+| SHA-256 | `7e6845d6cd022c66bf28c9759a9ab55dfa7df803e3b55741a1909af3ae19d2a7` | `63fb53a832bec34471845938aea2377db5385245e44bb5ba30283b1a233625e9` |
+| `pack_format` | 75 | 75 |
+
+Validate: `validate_font.py` PASS, `validate_pack.py` PASS both presets
+(`main` 0 errors/0 warnings, `hud` 0 errors/0 warnings), `build_gui.py --check`
+PASS (187 files). Deterministic: rebuilt inside the repo -> identical SHA-1
+for both packs (verified 2026-11-07).
+
+Changes vs v1.1.0 (wave 6 A1/A2/A3):
+
+1. **A1 — custom text font dropped from BOTH packs.** `minecraft:default` is a
+   reference-only chain `[include/space, include/default(uniform=false),
+   nomnom:ui, include/unifont]` (the HUD pack adds `nomnom:hud` before
+   `include/unifont`). No font JSON references `nomnom:font/vi_text.png`
+   any more — the 20 px glyph boxes overlapped MC's fixed 9 px line height by
+   11 px (sidebar rows collided, owner screenshot 1). `vi_text.png` still ships
+   in the main zip, unreferenced, as a rollback anchor. Vietnamese text now
+   renders via the vanilla providers (include/default + unifont).
+2. **A2 — NomNomUI-HUD v1.1.0 re-render at vanilla scale.** Cell 16x16,
+   height 9 / ascent 9 (atlas 128x64): every glyph renders as exactly one 9 px
+   line, no row bleed. Fixed-width digit group extended to
+   `0-9 . , k M T` + `ms` (U+E040–U+E04F) with a MEASURED uniform advance of
+   9 px: ink forced into a 15 px box, right edge pinned at atlas column 14,
+   `advance = round_half_up(15*9/16) + 1 = 9`. Ornaments/frames U+E050–E05D
+   re-fitted to 16 rows with measured advances. Number -> PUA mapping recipe
+   for the HUD agent: `HUD-INFO.md` (shipped in the zip,
+   `resourcepack-hud/HUD-INFO.md` in the repo).
+3. **A3 — light GUI theme.** Panels, slots, `bg`/`border`/`card`/`title` and
+   the neutral buttons repainted to paper white (`bg.png` mean RGB
+   (22,30,40) -> (230,233,238)); arrows (`btn_gray_prev/next/back/close`) are
+   now BLACK on the light face; gold accents unchanged
+   (`btn_gold` still (171,136,64)). Previews refreshed on a light sheet.
+
+Send order unchanged: **NomNomUI first, NomNomUI-HUD second**.
+
+## 0.1. Release v1.1.0 (wave 5, 2026-11-06) — main pack + HUD pack (legacy entry, Vietnamese)
 
 Release: https://github.com/NomNomNemNie/NomNomSMP/releases/tag/v1.1.0
 

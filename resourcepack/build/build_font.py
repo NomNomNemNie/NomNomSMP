@@ -11,8 +11,11 @@ NN5 (2026-11-06) — bản dựng lại theo feedback "font nhìn như 480p":
     (atlas 256x500). Vẫn render 1:1 (height == cell height) => không méo.
   * Alpha sau render được nắn độ tương phản (curve 36..210) để cắt quầng mờ
     nhưng vẫn giữ một chút khử răng cưa.
-  * Hợp đồng giữ nguyên: 385 codepoint (5 block Latin), 146/146 tiếng Việt
-    precomposed, fallback chain minecraft:default không đổi.
+  * NN6 (2026-11-07) A1: the custom text font is DROPPED from minecraft:default —
+    the override is now reference-only [include/space, include/default(uniform=false),
+    nomnom:ui, include/unifont]. The 385-glyph / 146-Vietnamese atlas is still built
+    to vi_text.png and shipped unreferenced as a rollback anchor (a 20 px glyph box
+    on the 9 px line height overlapped HUD rows by 11 px).
 
 Outputs (all under work/rp_src, overwritten deterministically -> idempotent):
 
@@ -978,10 +981,16 @@ def write_json(path: Path, data: dict) -> None:
 
 
 def default_font_json(text_rows: list[str]) -> dict:
+    """NN6 A1: the custom text font is DROPPED from minecraft:default.
+
+    The chain is [include/space, include/default(uniform=false), nomnom:ui,
+    include/unifont]. The vi_text atlas is still built and shipped on disk
+    (rollback anchor) but NOT referenced by any font JSON — a 20 px glyph box on
+    the fixed 9 px line height overlapped HUD rows by 11 px (wave 6 owner
+    screenshot 1). `text_rows` is kept in the signature for the charset TSV.
+    """
     return {
         "providers": [
-            {"type": "bitmap", "file": "nomnom:font/vi_text.png",
-             "height": CELL_H, "ascent": BASELINE, "chars": text_rows},
             {"type": "reference", "id": "minecraft:include/space"},
             {"type": "reference", "id": "minecraft:include/default",
              "filter": {"uniform": False}},
@@ -1002,47 +1011,25 @@ def verify(log: list[str], expect_icons: list[dict]) -> dict:
     alias_doc = json.loads(alias.read_text(encoding="utf-8"))
     ui_doc = json.loads(ui.read_text(encoding="utf-8"))
 
+    # ---- A1: the override is reference-only, no custom bitmap provider
     refs = [p.get("id") for p in mc_doc["providers"] if p.get("type") == "reference"]
     res["default_refs"] = refs
     assert refs == ["minecraft:include/space", "minecraft:include/default",
                     "nomnom:ui", "minecraft:include/unifont"], refs
     assert mc_doc == alias_doc, "nomnom:default alias differs from the override"
-    assert len(mc_doc["providers"][0]["chars"]) == TEXT_ROWS
-    assert all(len(r) == TEXT_COLS for r in mc_doc["providers"][0]["chars"])
-    assert mc_doc["providers"][0]["height"] == CELL_H
-    assert mc_doc["providers"][0]["ascent"] == BASELINE
-    assert BASELINE <= CELL_H
+    bitmaps = [p.get("file") for p in mc_doc["providers"] if p.get("type") == "bitmap"]
+    assert bitmaps == [], f"A1 violation: default.json still carries bitmap provider(s) {bitmaps}"
 
-    # ---- text glyphs
-    text_rows = mc_doc["providers"][0]["chars"]
-    text_cps = [ord(c) for r in text_rows for c in r if c != "\u0000"]
-    res["text_glyphs"] = len(text_cps)
-    res["text_duplicates"] = len(text_cps) - len(set(text_cps))
-    assert len(text_cps) == len(set(text_cps)), "duplicate text codepoints"
-    assert len(text_cps) >= 300, f"only {len(text_cps)} text glyphs"
-
-    vi = vietnamese_chars()
-    missing_vi = [c for c in vi if ord(c) not in set(text_cps)]
-    res["vi_total"] = len(vi)
-    res["vi_missing"] = missing_vi
-    assert not missing_vi, f"missing Vietnamese chars: {missing_vi}"
-
+    # ---- retired text atlas: shipped unreferenced (rollback anchor)
     atlas = Image.open(TEX_FONT / "vi_text.png").convert("RGBA")
     res["text_atlas_size"] = list(atlas.size)
     assert atlas.size == (TEXT_COLS * CELL_W, TEXT_ROWS * CELL_H)
     alpha = atlas.getchannel("A")
     res["text_atlas_ink_px"] = sum(alpha.histogram()[1:])
     assert res["text_atlas_ink_px"] > 0, "text atlas is empty"
-
-    # every codepoint on disk must have ink in its own cell
-    empty_cells = []
-    for i, cp in enumerate(text_cps):
-        row, col = divmod(i, TEXT_COLS)
-        cell = atlas.crop((col * CELL_W, row * CELL_H, col * CELL_W + CELL_W, row * CELL_H + CELL_H))
-        if cell.getchannel("A").getbbox() is None:
-            empty_cells.append(hex_cp(cp))
-    res["text_empty_cells"] = empty_cells
-    assert not empty_cells, f"empty glyph cells: {empty_cells}"
+    res["text_glyphs"] = 0
+    res["vi_total"] = 0
+    res["vi_missing"] = []
 
     # ---- icon font
     icon_rows = ui_doc["providers"][0]["chars"]
@@ -1144,31 +1131,34 @@ def write_charset_tsv(glyphs: list[dict], icons: list[dict], metrics: dict) -> N
 
 
 def font_info(res: dict) -> str:
-    return f"""NomNom UI Text / NomNom UI Icons (NN5 rebuild)
-=============================================
-Family          : NomNom UI Text (derived from Be Vietnam Pro)
+    return f"""NomNom UI Text / NomNom UI Icons (NN6)
+======================================
+Family          : NomNom UI Icons (PUA), with the NN5 text atlas RETIRED but shipped
 Upstream        : https://github.com/bettergui/BeVietnamPro
 Source file     : BeVietnamPro-Regular.ttf  ({sha256(TTF_REGULAR)})
 License         : SIL Open Font License 1.1 - see ../../../LICENSE-OFL.txt (verbatim OFL.txt)
                   Copyright 2021 The Be Vietnam Pro Project Authors.
-                  "NomNom UI Text" is a derivative; no Reserved Font Name is claimed by upstream.
+                  "NomNom UI Text" was a derivative; no Reserved Font Name is claimed by upstream.
 
-TEXT FONT (provider id minecraft:default, override at assets/minecraft/font/default.json)
-  Grid          : {TEXT_COLS}x{TEXT_ROWS} cells of {CELL_W}x{CELL_H} px = {TEXT_COLS*CELL_W}x{TEXT_ROWS*CELL_H} px  (nomnom:font/vi_text.png)
-  Rasterisation : FreeType via Pillow, rendered DIRECTLY at final size (em {EM_PX} px, hinted —
-                  no supersample/downscale like v1.0), baseline {BASELINE} px, then contrast
-                  curve alpha {ALPHA_LOW}..{ALPHA_HIGH} -> 0..255 (cuts halo, keeps edge AA).
-                  White RGB for text tinting.
-  Baseline      : {BASELINE} px from cell top (provider "ascent": {BASELINE}, "height": {CELL_H})
-  Codepoints    : {res.get('text_glyphs', 0)} text glyphs
-  Vietnamese    : {res.get('vi_total', 0)}/{res.get('vi_total', 0)} precomposed characters
-                  (12 vowels x 6 tones, upper+lower, + d/D)
-  Space         : not in the atlas - provided by minecraft:include/space (4 px)
-  Advances      : computed by the client, advance = round_half_up(ink_w * height / cell_h) + 1
-                  (BitmapProvider#load). No advance is stored in the JSON.
-  Fallbacks     : minecraft:include/default + minecraft:include/unifont cover everything this
-                  atlas omits (U+2014 em dash, U+20AB dong sign, U+2726/U+2694/U+2713 HUD symbols,
-                  combining marks, CJK). Do not remove those references.
+TEXT FONT — REMOVED FROM THE CHAIN (NN6 A1)
+  The custom Vietnamese bitmap text font (nomnom:font/vi_text.png, provider
+  height 20 / ascent 16) is NO LONGER REFERENCED by any font JSON as of NN6.
+  Root cause (owner screenshot 1, wave 6): a 20 px glyph box on Minecraft's fixed
+  9 px line height overlaps the next row by 20 - 9 = 11 px ("Gio ..." over
+  "Online 5/20" in the sidebar).
+ minecraft:default override chain (assets/minecraft/font/default.json):
+      1. minecraft:include/space
+      2. minecraft:include/default  (filter.uniform = false)
+      3. nomnom:ui
+      4. minecraft:include/unifont
+  The alias at assets/nomnom/font/default.json (font id nomnom:default) is
+  byte-equal in content to the override.
+  vi_text.png ({TEXT_COLS*CELL_W}x{TEXT_ROWS*CELL_H}, {TEXT_COLS}x{TEXT_ROWS} cells of 16x20, {res.get('text_glyphs', 0)} referenced glyphs when it was
+  live, 146/146 precomposed Vietnamese) is STILL SHIPPED unreferenced, so a
+  rollback only needs one JSON edit. All text now renders with the vanilla
+  providers: include/default covers Latin + Vietnamese precomposed; unifont
+  covers the rest (em dash, dong sign, HUD symbols, combining marks, CJK).
+  Do not remove those references.
 
 ICON FONT (provider id nomnom:ui, assets/nomnom/font/ui.json)
   Grid          : {ICON_COLS}x{ICON_ROWS} cells of {ICELL}x{ICELL} px = {ICON_COLS*ICELL}x{ICON_ROWS*ICELL} px  (nomnom:font/icons.png)
@@ -1182,12 +1172,14 @@ ICON FONT (provider id nomnom:ui, assets/nomnom/font/ui.json)
   Registry      : work/rp_build/icons-nn5.json (id, codepoint, ASCII fallback);
                   aliases confirm=check, cancel=cross
 
-HUD PACK (NomNomUI-HUD, font id nomnom:hud — see work/rp_build/hud_src/HUD-INFO.txt)
-  Pack phụ cho sidebar/tablist: digits fixed-width U+E040.., ornament/khung U+E050..
-  Pack này KHÔNG đóng gói font text; override default.json của nó tham chiếu chéo
-  nomnom:font/vi_text.png (nếu pack chính vắng mặt, chữ rơi về fallback vanilla).
+HUD PACK (NomNomUI-HUD v1.1.0, font id nomnom:hud — see HUD-INFO.md shipped in that pack)
+  Sidebar/tablist column-alignment pack: fixed-width digits 0-9 . , k M T + ms
+  (U+E040..U+E04F, uniform 9 px advance, cell 16x16 height 9 / ascent 9) and
+  ornament/frame glyphs (U+E050..U+E05D).
+  This pack does NOT ship the text font; its minecraft:default override is the
+  same NN6 chain plus a reference to nomnom:hud — no vi_text cross-reference.
 
-Generated by work/rp_build/build_font.py (NN5) - do not hand edit.
+Generated by work/rp_build/build_font.py (NN6) - do not hand edit.
 """
 
 
@@ -1333,12 +1325,10 @@ def main() -> int:
 
     # --- always verify
     res = verify(log, icons)
-    res["text_glyphs"] = res.get("text_glyphs", 0)
     info = {
-        "text_glyphs": res["text_glyphs"],
+        "text_font": "RETIRED (A1) - vi_text.png kept on disk, unreferenced",
         "text_atlas": res["text_atlas_size"],
         "text_ink_px": res["text_atlas_ink_px"],
-        "vietnamese": f"{res['vi_total'] - len(res['vi_missing'])}/{res['vi_total']}",
         "icons": res["icon_codepoints"],
         "icon_atlas": res["icon_atlas_size"],
         "icon_range": res["icon_range"],
@@ -1349,19 +1339,10 @@ def main() -> int:
     if not args.verify_only:
         (FONT_ASSETS / "FONT-INFO.txt").write_text(font_info(res), encoding="utf-8", newline="\n")
 
-    print("== NomNom font build (NN5) ==")
+    print("== NomNom font build (NN6) ==")
     for k, v in info.items():
         print(f"  {k:14}: {v}")
 
-    # vertical metrics are design-relevant (line-height 9 px vs a 20 px cell)
-    atlas_disk = Image.open(TEX_FONT / "vi_text.png").convert("RGBA")
-    cps_disk = [ord(c) for r in json.loads(
-        (MC_FONT / "default.json").read_text(encoding="utf-8"))["providers"][0]["chars"]
-        for c in r if c != "\u0000"]
-    glyphs_disk = [{"cp": cp, "row": i // TEXT_COLS, "col": i % TEXT_COLS}
-                   for i, cp in enumerate(cps_disk)]
-    vm = vertical_metrics(atlas_disk, glyphs_disk)
-    print("  vertical      : " + ", ".join(f"{k}={v}" for k, v in vm.items()))
     if log:
         for line in log:
             print("  " + line)

@@ -1,11 +1,11 @@
 {
   "pack": "NomNomUI-HUD",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "pack_format": 75,
-  "build_time": "2026-11-05T19:07:51Z",
-  "output": "dist\\NomNomUI-HUD-v1.0.0.zip",
+  "build_time": "2026-11-07T07:32:48Z",
+  "output": "E:\\Projects\\NomNomMinecraftServer\\work\\gh\\NomNomSMP\\resourcepack-hud\\build\\dist\\NomNomUI-HUD-v1.1.0.zip",
   "files": 11,
-  "bytes": 12440,
-  "sha1": "e5ba4876cf7c68bfc52a858ac8650df2b28bfb41",
-  "sha256": "b93db1fbc60c023ce300127d829f2e261527ef21e021287561ae6934cd0ddd81"
+  "bytes": 13441,
+  "sha1": "2e5f2e4152ef6392d77f8b5df4a55cba6bf99b46",
+  "sha256": "63fb53a832bec34471845938aea2377db5385245e44bb5ba30283b1a233625e9"
 }

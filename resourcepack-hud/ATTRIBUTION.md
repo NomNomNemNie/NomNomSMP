@@ -1,21 +1,21 @@
-# Ghi công & giấy phép — NomNomUI-HUD
+# Attribution & licences — NomNomUI-HUD
 
 ## 1. Font Be Vietnam Pro
 
-| Trường | Giá trị |
+| Field | Value |
 |---|---|
-| Tên font | **Be Vietnam Pro** (Regular 400) |
-| Tác giả | The Be Vietnam Pro Project Authors, Copyright 2021 |
-| Giấy phép | **SIL Open Font License 1.1 (OFL-1.1)** |
-| Nguồn | Google Fonts — `ofl/bevietnampro` |
-| Văn bản giấy phép | `LICENSE-OFL.txt` (kèm trong pack) |
+| Font | **Be Vietnam Pro** (Regular 400) |
+| Author | The Be Vietnam Pro Project Authors, Copyright 2021 |
+| Licence | **SIL Open Font License 1.1 (OFL-1.1)** |
+| Source | Google Fonts — `ofl/bevietnampro` |
+| Licence text | `LICENSE-OFL.txt` (shipped in this pack) |
 
-Bộ digits fixed-width của pack này là dẫn xuất raster hoá từ Be Vietnam Pro
-(ký tự được ép vào hộp 9 px để đồng nhất advance) trong font id `nomnom:hud`.
-OFL cho phép nhúng/phân phối bản raster hoá trong resource pack; không được
-bán font riêng lẻ.
+The fixed-width digit set of this pack is a raster derivative of Be Vietnam Pro
+(characters forced into a 15 px-wide box for a uniform advance) in font id
+`nomnom:hud`. OFL allows embedding/redistribution of rasterized fonts inside a
+resource pack; the font itself must not be sold separately.
 
-## 2. Phần tự thiết kế
+## 2. Original design
 
-Ornament, khung căn cột, bố cục glyph HUD và toàn bộ script đóng gói:
-**© NomNom SMP 2026**. Phát hành kèm server NomNom SMP.
+Ornaments, column-alignment frames, HUD glyph layout and the packaging script:
+**© NomNom SMP 2026**. Released with the NomNom SMP server.

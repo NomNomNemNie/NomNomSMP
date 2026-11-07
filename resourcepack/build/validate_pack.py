@@ -39,6 +39,7 @@ REQUIRED_HUD = [
     "README.md",
     "ATTRIBUTION.md",
     "LICENSE-OFL.txt",
+    "HUD-INFO.md",
     "assets/nomnom/font/ui.json",
     "assets/nomnom/font/hud.json",
     "assets/nomnom/textures/font/icons.png",
@@ -48,7 +49,7 @@ REQUIRED = REQUIRED_MAIN  # đổi theo --preset trong main()
 
 ALLOWED_ROOT = {
     "pack.mcmeta", "pack.png", "README.md", "ATTRIBUTION.md",
-    "LICENSE-OFL.txt", "PLACEHOLDERS.txt", "HUD-INFO.txt",
+    "LICENSE-OFL.txt", "PLACEHOLDERS.txt", "HUD-INFO.md",
 }
 
 JUNK_PARTS = {
@@ -188,7 +189,7 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result,
 
         expect_dim("assets/nomnom/textures/font/icons.png", 128, 112)
         expect_dim("assets/nomnom/textures/font/vi_text.png", 256, 500)
-        expect_dim("assets/nomnom/textures/font/hud.png", 128, 80)
+        expect_dim("assets/nomnom/textures/font/hud.png", 128, 64)
         expect_dim("assets/nomnom/textures/gui/panel_primary.png", 48, 48)
         expect_dim("assets/nomnom/textures/gui/panel_inset.png", 48, 48)
         expect_dim("assets/nomnom/textures/gui/panel_raised.png", 48, 48)
@@ -219,11 +220,15 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result,
                 has_bitmap = True
                 ref = prov.get("file", "")
                 asset = resolve_asset(ref)
+                if "vi_text" in asset:
+                    # NN6 A1: the custom text font is dropped from EVERY pack —
+                    # vi_text.png may still ship (main pack, unreferenced) but no
+                    # font JSON may point at it (20 px boxes overlapped the 9 px
+                    # line height by 11 px).
+                    res.err(f"{n}: A1 violation — bitmap reference to {asset} "
+                            f"(custom text font must not be referenced any more)")
+                    continue
                 if asset not in names:
-                    if preset == "hud" and asset == "assets/nomnom/textures/font/vi_text.png":
-                        # thiết kế A3: pack HUD tham chiếu CHÉO atlas text của pack chính
-                        res.info["hud_cross_pack_ref"] = asset
-                        continue
                     res.err(f"{n}: bitmap trỏ tới {asset} không có trong zip")
                     continue
                 rows = prov.get("chars", [])
@@ -264,13 +269,27 @@ def validate(zip_path: Path, weapons_zip: Path, expect_format: int, res: Result,
                     res.err(f"{n}: dải PUA phải U+E000..U+E035 (48 cũ + 6 mới), thấy "
                             f"U+{min(cps):04X}..U+{max(cps):04X}")
             if n == "assets/nomnom/font/hud.json" and has_bitmap:
-                if len(cps) != 28:
-                    res.err(f"{n}: cần 28 glyph HUD, thấy {len(cps)}")
+                if len(cps) != 30:
+                    res.err(f"{n}: cần 30 glyph HUD (10 digits + 6 suffix + 14 ornament), thấy {len(cps)}")
                 if cps and (min(cps) != 0xE040 or max(cps) != 0xE05D):
                     res.err(f"{n}: dải PUA HUD phải U+E040..U+E05D, thấy "
                             f"U+{min(cps):04X}..U+{max(cps):04X}")
-                if prov.get("height") != 20 or prov.get("ascent") != 16:
-                    res.err(f"{n}: HUD font phải height=20 ascent=16 (khớp pack chính)")
+                if prov.get("height") != 9 or prov.get("ascent") != 9:
+                    res.err(f"{n}: HUD font phải height=9 ascent=9 (vanilla scale, NN6 A2)")
+                # NN6 A2: the digit group must be right-pinned at atlas column 14
+                # (ink_w = 15) so every glyph advances round_half_up(15*9/16)+1 = 9 px.
+                hud_atlas = Image.open(io.BytesIO(
+                    z.read("assets/nomnom/textures/font/hud.png"))).convert("RGBA")
+                bad_pin = []
+                for idx in range(16):                       # U+E040..U+E04F
+                    row, col = divmod(idx, 8)
+                    cc = hud_atlas.crop((col * 16, row * 16, col * 16 + 16, row * 16 + 16))
+                    bb = cc.getchannel("A").getbbox()
+                    if bb is None or bb[2] != 15:
+                        bad_pin.append((f"E{0xE040 + idx:04X}", None if bb is None else bb[2]))
+                if bad_pin:
+                    res.err(f"{n}: digit group not right-pinned at column 14 "
+                            f"(uniform 9 px advance broken): {bad_pin}")
             if n == "assets/minecraft/font/default.json":
                 ids = [p.get("id") for p in providers if p.get("type") == "reference"]
                 for needed in ("minecraft:include/space", "minecraft:include/default",

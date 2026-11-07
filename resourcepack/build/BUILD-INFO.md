@@ -1,40 +1,50 @@
-# BUILD-INFO — NomNomUI v1.1.0 (đợt 5, NN5)
+# BUILD-INFO — NomNomUI v1.2.0 (wave 6, NN6)
 
-| Trường | Giá trị |
+| Field | Value |
 |---|---|
-| Ngày build | 2026-11-06 |
-| Nguồn | `resourcepack/assets/**` (270 file UI) + `assets/weapons/**` (22 file) |
-| Số file zip | 275 |
+| Build date | 2026-11-07 |
+| Source | `resourcepack/assets/**` (248 UI files incl. the retired vi_text atlas + 22 weapons files) |
+| Zip files | 275 |
 | PNG / JSON | 161 / 107 |
-| Kích thước | 138.392 bytes |
+| Size | 136,884 bytes |
 | `pack_format` | 75 (resource pack 1.21.11) |
-| SHA-1 | `d964fee394ba840c92ea86464589436da38cfae9` |
-| SHA-256 | `b9f67c4df05933d17c757a37a26119fb467f424ce9d1cfc68964ee62e2ace177` |
-| Placeholder | 0 |
-| Item definition phải sửa | 0 |
+| SHA-1 | `b46aab6df436d6c463253ecb3b08cf1b3a9b6813` |
+| SHA-256 | `7e6845d6cd022c66bf28c9759a9ab55dfa7df803e3b55741a1909af3ae19d2a7` |
+| Placeholders | 0 |
+| Item definitions normalized | 0 |
 
-## Đổi gì so với v1.0.0
+## What changed vs v1.1.0 (wave 6 A1 + A3)
 
-- **Font (A1)**: render lại toàn bộ 385 glyph — em 10.31 → **13 px** (glyph to hơn ~26%),
-  cell 16x16 → **16x20** (atlas 256x400 → 256x500), provider height 16→20, ascent 13→16.
-  Kỹ thuật: render TRỰC TIẾP ở cỡ cuối có hinting FreeType (bỏ supersample 4x + LANCZOS
-  của 1.0) + curve alpha 36..210 — nét sạch, hết "480p".
-- **Icon (A2)**: 48 glyph vẽ lại + **6 icon mới** U+E030–E035 (book, sell, friendly, shop,
-  chat-tag, worldtime); atlas icons.png 128x96 → 128x112.
-- **Item model (A2/A5)**: thêm 10 icon 32x32 + model + item definition: sethome, rp, book,
-  sell, auction, friendly, shop, chat-tag, worldtime, sword → tổng 21 icon item.
-- weapons-plus giữ nguyên byte (22 file, CC-BY-4.0 attribution không đổi).
+- **A1 — custom text font dropped**: `assets/minecraft/font/default.json` (and the
+  `nomnom:default` alias) no longer carry the `vi_text` bitmap provider. The
+  `minecraft:default` chain is now exactly
+  `[minecraft:include/space, minecraft:include/default (filter.uniform=false), nomnom:ui, minecraft:include/unifont]`.
+  Root cause: the 20 px text glyph boxes overlapped Minecraft's fixed 9 px line
+  height by 11 px (owner sidebar screenshot, wave 6). `vi_text.png` is STILL
+  SHIPPED, unreferenced, as a rollback anchor. All text renders with the vanilla
+  providers (full Vietnamese coverage via include/default + unifont).
+- **A3 — light GUI theme**: panels (`panel_primary/inset/raised`, `titlebar`,
+  `divider`), slots (`slot_inset`, `slot_border`) and the item kit (`bg`,
+  `border`, `card`, `title`) repainted to a clean paper-white look
+  (`bg.png` mean RGB (22,30,40) -> (230,233,238)); **arrows**
+  (`btn_gray_prev/next/back/close`) render **black** on the light neutral
+  buttons; gold accents unchanged (`btn_gold` mean RGB still (171,136,64)).
+  Neutral (gray) buttons + the disabled state flipped to light as part of the theme.
+- Icon font `nomnom:ui` (54 glyphs, U+E000–U+E035) unchanged.
+- weapons-plus kept byte-identical (22 files, CC-BY-4.0 attribution unchanged).
 
-## Tái lập
+## Rebuild (deterministic)
+
+From `resourcepack/` (the merged weapons live inside `assets/weapons/**`, so the
+repo is self-contained):
 
 ```bash
 cd resourcepack
-python build/build_font.py          # font + 54 glyph icon
-python build/build_gui.py           # 187 file texture/model/definition
-python build/build_pack.py --no-weapons --out dist/NomNomUI-v1.1.0.zip
+python build/build_gui.py --check
 python build/validate_font.py
-python build/validate_pack.py --zip dist/NomNomUI-v1.1.0.zip
+python build/build_pack.py --version 1.2.0 --ui-src . --no-weapons \
+    --out dist/NomNomUI-v1.2.0.zip
+python build/validate_pack.py --zip dist/NomNomUI-v1.2.0.zip
 ```
 
-Build deterministic: rebuild trong workspace phát triển và trong repo cho **cùng SHA-1**
-`d964fee…` (đã chạy đối chiếu 2026-11-06).
+Same source -> same SHA-1 (fixed zip timestamps, sorted entries).

@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Independent validator for the NomNom UI font assets (NN5).
+Independent validator for the NomNom UI font assets (NN6).
 
 Deliberately shares no code with build_font.py: it re-reads the shipped files with
 plain json / Pillow and re-derives every count, so a bug in the builder cannot make
 its own self-check pass.
 
-Checks
+Checks (NN6 A1 — custom text font dropped)
   1. every font provider JSON parses with python json, and the default override sits
-     at assets/minecraft/font/default.json with the full fallback chain;
-  2. atlases exist, are the declared size (text 256x500 cell 16x20, icons 128x112),
-     and are not empty;
-  3. 54 icon glyphs, contiguous U+E000..U+E035, one non-blank cell each, right edge
+     at assets/minecraft/font/default.json with the A1 fallback chain
+     [include/space, include/default(filter.uniform=false), nomnom:ui, include/unifont];
+     the nomnom:default alias is byte-equal in content;
+  2. NO font JSON (either namespace) references nomnom:font/vi_text.png any more —
+     the 20px text provider was the root cause of the row overlap (wave 6 A1);
+  3. the retired text atlas vi_text.png is still shipped on disk (rollback anchor),
+     at its NN5 size 256x500, and is not empty;
+  4. 54 icon glyphs, contiguous U+E000..U+E035, one non-blank cell each, right edge
      column transparent (so the client advance is 9 px), binary white/black alpha;
-     U+E000..U+E02F vẫn khớp work/nn4-icons.json từng codepoint (hợp đồng v1.0);
-  4. >= 300 text codepoints and all 146 precomposed Vietnamese characters present;
+     U+E000..U+E02F still match work/nn4-icons.json codepoint for codepoint (v1.0 contract);
   5. icon manifest (work/rp_build/icons-nn5.json) and ui.json agree codepoint for
-     codepoint; glyph vẽ lại không được đổi codepoint/id của 48 icon cũ;
+     codepoint; redrawn glyphs must not change the codepoint/id of the 48 old icons;
   6. OFL licence shipped verbatim.
 
 Usage: python work/rp_build/validate_font.py
@@ -26,7 +29,6 @@ Exit code 0 = all checks passed.
 
 import json
 import sys
-import unicodedata
 from pathlib import Path
 
 from PIL import Image
@@ -38,7 +40,7 @@ A = RP / "assets"
 DEFAULT_JSON = A / "minecraft" / "font" / "default.json"
 ALIAS_JSON = A / "nomnom" / "font" / "default.json"
 UI_JSON = A / "nomnom" / "font" / "ui.json"
-TEXT_PNG = A / "nomnom" / "textures" / "font" / "vi_text.png"
+TEXT_PNG = A / "nomnom" / "textures" / "font" / "vi_text.png"   # retired, kept unreferenced
 ICON_PNG = A / "nomnom" / "textures" / "font" / "icons.png"
 ICON_DIR = A / "nomnom" / "textures" / "icon"
 MANIFEST = HERE / "icons-nn5.json"
@@ -48,8 +50,7 @@ if not MANIFEST_V1.is_file():
 OFL = RP / "LICENSE-OFL.txt"
 OFL_SRC = HERE / "fonts" / "OFL.txt"
 
-TEXT_CELL_W, TEXT_CELL_H = 16, 20
-TEXT_COLS, TEXT_ROWS = 16, 25
+TEXT_COLS, TEXT_ROWS = 16, 25        # retired atlas geometry (kept for the size check)
 ICON_COLS, ICON_ROWS = 8, 7
 N_ICONS = 54
 
@@ -65,20 +66,8 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def vietnamese():
-    vowels = "aăâeêioôơuưy"
-    tones = ["", "\u0300", "\u0301", "\u0303", "\u0309", "\u0323"]
-    out = set()
-    for v in vowels:
-        for t in tones:
-            out.add(unicodedata.normalize("NFC", v + t))
-            out.add(unicodedata.normalize("NFC", v.upper() + t))
-    out |= {"đ", "Đ"}
-    return {c for c in out if len(c) == 1}
-
-
 def main() -> int:
-    print("== 1. provider JSON ==")
+    print("== 1. provider JSON (A1 chain) ==")
     docs = {}
     for name, path in (("override", DEFAULT_JSON), ("alias", ALIAS_JSON), ("icons", UI_JSON)):
         try:
@@ -90,49 +79,38 @@ def main() -> int:
 
     ov = docs["override"]
     refs = [p.get("id") for p in ov["providers"] if p.get("type") == "reference"]
+    bitmaps = [p.get("file") for p in ov["providers"] if p.get("type") == "bitmap"]
     check(DEFAULT_JSON.is_file(), "override lives at assets/minecraft/font/default.json")
     check(refs == ["minecraft:include/space", "minecraft:include/default",
                    "nomnom:ui", "minecraft:include/unifont"],
-          f"fallback chain is complete and ordered: {refs}")
+          f"A1 fallback chain is complete and ordered: {refs}")
+    check(bitmaps == [], f"override carries no bitmap provider of its own (got {bitmaps})")
+    dflt = ov["providers"]
+    uni = [p for p in dflt if p.get("type") == "reference" and p.get("id") == "minecraft:include/default"]
+    check(len(uni) == 1 and uni[0].get("filter", {}).get("uniform") is False,
+          "include/default reference keeps filter.uniform=false")
     check(docs["alias"] == ov, "nomnom:default alias is byte-equal in content to the override")
 
-    print("== 2. text atlas ==")
-    text_rows = ov["providers"][0]["chars"]
-    check(ov["providers"][0]["type"] == "bitmap"
-          and ov["providers"][0]["file"] == "nomnom:font/vi_text.png",
-          "first provider is the vi_text bitmap")
-    check(ov["providers"][0]["height"] == 20 and ov["providers"][0]["ascent"] == 16,
-          "text provider height=20 ascent=16 (ascent <= height, cell 16x20)")
-    check(len(text_rows) == TEXT_ROWS and all(len(r) == TEXT_COLS for r in text_rows),
-          f"chars grid is {TEXT_ROWS} rows x {TEXT_COLS} columns")
-    cps = [ord(c) for r in text_rows for c in r if c != "\u0000"]
-    check(len(cps) == len(set(cps)), "no duplicated text codepoints")
-    check(len(cps) == 385, f"385 text glyphs declared (got {len(cps)})")
-    check(len(cps) >= 300, f"at least 300 text glyphs (got {len(cps)})")
+    print("== 2. vi_text must not be referenced anywhere (A1) ==")
+    vitext_refs = []
+    for font_json in sorted(A.glob("*/font/*.json")):
+        data = json.loads(font_json.read_text(encoding="utf-8"))
+        for prov in data.get("providers", []):
+            if prov.get("type") == "bitmap" and "vi_text" in str(prov.get("file", "")):
+                vitext_refs.append(font_json.relative_to(WORK).as_posix())
+    check(not vitext_refs,
+          f"no font JSON references nomnom:font/vi_text.png (found {vitext_refs or 'none'})")
 
-    atlas = Image.open(TEXT_PNG).convert("RGBA")
-    check(atlas.size == (TEXT_COLS * TEXT_CELL_W, TEXT_ROWS * TEXT_CELL_H),
-          f"vi_text.png is {TEXT_COLS * TEXT_CELL_W}x{TEXT_ROWS * TEXT_CELL_H} (got {atlas.size})")
-    alpha = atlas.getchannel("A")
-    ink = sum(alpha.histogram()[1:])
-    check(ink > 0, f"vi_text.png is not empty ({ink} ink px)")
+    print("== 3. retired text atlas still shipped (rollback anchor) ==")
+    check(TEXT_PNG.is_file(), "vi_text.png is still shipped on disk (unreferenced)")
+    if TEXT_PNG.is_file():
+        atlas = Image.open(TEXT_PNG).convert("RGBA")
+        check(atlas.size == (TEXT_COLS * 16, TEXT_ROWS * 20),
+              f"vi_text.png keeps its NN5 size {TEXT_COLS * 16}x{TEXT_ROWS * 20} (got {atlas.size})")
+        ink = sum(atlas.getchannel("A").histogram()[1:])
+        check(ink > 0, f"vi_text.png is not empty ({ink} ink px)")
 
-    cells_empty = []
-    for i, cp in enumerate(cps):
-        r, c = divmod(i, TEXT_COLS)
-        cell = atlas.crop((c * TEXT_CELL_W, r * TEXT_CELL_H,
-                           c * TEXT_CELL_W + TEXT_CELL_W, r * TEXT_CELL_H + TEXT_CELL_H))
-        if cell.getchannel("A").getbbox() is None:
-            cells_empty.append(hex(cp))
-    check(not cells_empty, f"every declared glyph has ink in its own cell ({len(cells_empty)} empty)")
-
-    vi = vietnamese()
-    missing = sorted(c for c in vi if ord(c) not in set(cps))
-    check(len(vi) == 146, f"Vietnamese reference set is 146 chars (got {len(vi)})")
-    check(not missing, f"all 146 precomposed Vietnamese chars present (missing {''.join(missing) or 'none'})")
-    notes.append(f"text glyphs: {len(cps)}, Vietnamese: {len(vi) - len(missing)}/{len(vi)}")
-
-    print("== 3. icon font ==")
+    print("== 4. icon font ==")
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     icons = manifest["icons"]
     check(len(icons) == N_ICONS, f"icons-nn5.json declares {N_ICONS} icons (got {len(icons)})")
@@ -188,13 +166,14 @@ def main() -> int:
     check(not missing_files, f"{N_ICONS} individual icon PNGs exist (missing {missing_files})")
     check(sizes == {(16, 16)}, f"individual icons are 16x16 (got {sizes})")
 
-    print("== 4. licence / attribution ==")
+    print("== 5. licence / attribution ==")
     check(OFL.is_file(), "LICENSE-OFL.txt exists in the pack root")
     if OFL.is_file():
         check(OFL.read_bytes() == OFL_SRC.read_bytes(),
               "LICENSE-OFL.txt is byte-identical to the vendored OFL.txt")
 
     print()
+    notes.append(f"icons: {len(icons)} (U+E000..U+{0xE000 + N_ICONS - 1:04X}), text font: retired (vi_text kept unreferenced)")
     for n in notes:
         print("  note: " + n)
     if failures:

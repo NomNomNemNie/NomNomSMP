@@ -1,48 +1,51 @@
-# Ghi công & giấy phép — NomNom UI resource pack
+# Attribution & licences — NomNom UI resource pack
 
-Pack này phân phối lại tài sản của bên thứ ba. Khi dùng/chia sẻ lại, giữ nguyên
-file này và các ghi công dưới đây.
+This pack redistributes third-party assets. When reusing/sharing it, keep this
+file and the attributions below intact.
 
-## 1. weapons-plus (texture vũ khí)
+## 1. weapons-plus (weapon textures)
 
-| Trường | Giá trị |
+| Field | Value |
 |---|---|
-| Tên dự án | **weapons-plus** (slug `weapon-plus`) |
-| Tác giả | **jfrost3712** |
+| Project | **weapons-plus** (slug `weapon-plus`) |
+| Author | **jfrost3712** |
 | Modrinth project ID | `4pmYLtZ9` |
-| Trang dự án | https://modrinth.com/project/4pmYLtZ9 |
-| Giấy phép | **Creative Commons Attribution 4.0 International (CC-BY-4.0)** |
-| Văn bản giấy phép | https://creativecommons.org/licenses/by/4.0/ |
-| Phạm vi trong pack | Toàn bộ `assets/weapons/**` (items, models, textures) |
+| Project page | https://modrinth.com/project/4pmYLtZ9 |
+| Licence | **Creative Commons Attribution 4.0 International (CC-BY-4.0)** |
+| Licence text | https://creativecommons.org/licenses/by/4.0/ |
+| Scope in this pack | All of `assets/weapons/**` (items, models, textures) |
 
-Yêu cầu của CC-BY-4.0: ghi tên tác giả, link tới giấy phép, link tới nguồn và
-**nêu rõ nếu có sửa đổi**. Pack này:
+CC-BY-4.0 requires: credit the author, link the licence, link the source and
+**state if changes were made**. This pack:
 
-- giữ nguyên đường dẫn `assets/weapons/**` và copy **nguyên byte** từ
-  `weapons_rp.zip` nhận được (bản patch tương thích 1.21.11 của dự án gốc);
-- **không** sửa thêm texture/model vũ khí trong quá trình đóng gói;
-- mọi khác biệt so với bản upstream (nếu có) thuộc về `weapons_rp.zip` nguồn,
-  không phải chỉnh sửa của NomNom SMP.
+- keeps the `assets/weapons/**` paths and byte-copies them from the received
+  `weapons_rp.zip` (the 1.21.11 compatibility patch of the upstream project);
+- does **not** modify weapon textures/models during packaging;
+- any difference from upstream (if any) belongs to the source `weapons_rp.zip`,
+  not to an edit by NomNom SMP.
 
 ## 2. Font Be Vietnam Pro
 
-| Trường | Giá trị |
+| Field | Value |
 |---|---|
-| Tên font | **Be Vietnam Pro** (Regular 400 + Bold 700) |
-| Tác giả | The Be Vietnam Pro Project Authors, Copyright 2021 |
-| Giấy phép | **SIL Open Font License 1.1 (OFL-1.1)** |
-| Nguồn | Google Fonts — `ofl/bevietnampro` |
-| Văn bản giấy phép | `LICENSE-OFL.txt` (kèm trong pack) |
+| Font | **Be Vietnam Pro** (Regular 400 + Bold 700) |
+| Author | The Be Vietnam Pro Project Authors, Copyright 2021 |
+| Licence | **SIL Open Font License 1.1 (OFL-1.1)** |
+| Source | Google Fonts — `ofl/bevietnampro` |
+| Licence text | `LICENSE-OFL.txt` (shipped in the pack) |
 
-OFL cho phép nhúng/phân phối font trong resource pack, kể cả bản raster hóa;
-không được bán font riêng lẻ. Tên font gốc được giữ trong ghi công này.
+OFL allows embedding/redistributing the font (including rasterizations) inside a
+resource pack; the font itself must not be sold separately. Since wave 6 A1 the
+text font is no longer referenced by `minecraft:default`; the retired atlas and
+the PUA icon/HUD glyphs remain derivatives of this typeface.
 
-## 3. Phần tự thiết kế
+## 3. Original design
 
-Palette, panel 9-slice, button, badge tier, bố cục menu, icon glyph và toàn bộ
-script đóng gói: **© NomNom SMP 2026**. Được phát hành kèm server NomNom SMP.
+Palette, 9-slice panels, buttons, tier badges, menu layout, light theme (wave 6
+A3), icon glyphs and the whole packaging script: **© NomNom SMP 2026**. Released
+with the NomNom SMP server.
 
-## 4. Ghi công trong sản phẩm
+## 4. In-product attribution
 
-- README của repo và của pack đều có mục "Ghi công (bắt buộc — CC-BY-4.0)".
-- Trang phát hành GitHub Releases phải giữ nguyên phần ghi công này.
+- The repo README and the pack README both carry an "Attribution (required)" section.
+- The GitHub Releases page must keep this attribution intact.

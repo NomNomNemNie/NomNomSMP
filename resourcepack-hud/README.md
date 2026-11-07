@@ -1,23 +1,30 @@
-# NomNomUI-HUD — resource pack cho sidebar + tablist
+# NomNomUI-HUD — resource pack for the sidebar + tablist
 
-Pack phụ của **NomNom SMP** (Paper 1.21.11), tách khỏi pack chính **NomNomUI**:
-chỉ chứa glyph/ornament/khung căn cột cho scoreboard (sidebar) + tablist.
+Companion pack of **NomNom SMP** (Paper 1.21.11), separate from the main pack
+**NomNomUI**: contains only the column-alignment glyphs/ornaments/frames for the
+scoreboard (sidebar) and tablist.
 
-- Phiên bản: **1.0.0**
+- Version: **1.1.0**
 - `pack_format`: **75** (resource pack, Minecraft 1.21.11)
-- Font riêng `nomnom:hud` — PUA **U+E040–U+E05D**:
-  - **Digits fixed-width** `0-9 . , k M` (U+E040–U+E04D) — mọi glyph advance 10 px
-    => cột số liệu căn phải TUYỆT ĐỐI (map từng ký tự sau khi padLeft).
-  - Ornament + khung (U+E050–U+E05D): rule 3-mảnh, vbar, row-bg, spark, khung 8-mảnh.
-- Copy byte-identical của font icon `nomnom:ui` (U+E000–U+E035) để icon chạy đúng
-  kể cả khi chỉ cài pack này.
-- Override `minecraft:default` tham chiếu chéo `nomnom:font/vi_text.png` của pack
-  chính — không chứa font text; thiếu pack chính thì chữ rơi về fallback vanilla.
-- Cài cùng lúc cả hai pack: gửi **NomNomUI trước, NomNomUI-HUD sau**
-  (`Player#addResourcePack`) — override của HUD đã chứa ĐỦ provider của pack chính.
-- Chi tiết bảng glyph + cách dùng: `HUD-INFO.txt` trong pack.
+- Own font `nomnom:hud` — PUA **U+E040–U+E05D**:
+  - **Fixed-width digits** `0-9 . , k M T` + `ms` ligature (U+E040–U+E04F) —
+    EVERY glyph advances exactly **9 px** (ink forced into a 15 px box, right
+    edge pinned at atlas column 14) => numeric columns right-align perfectly.
+    Cell **16x16, height 9 / ascent 9** (vanilla scale — one 9 px text line per
+    glyph, no row overlap; the old 20 px cells overlapped by 11 px).
+  - Ornaments + frames (U+E050–U+E05D): 3-piece rule, vbar, row-bg, spark,
+    8-piece one-row frame.
+- Byte-identical copy of the icon font `nomnom:ui` (U+E000–U+E035) so icons work
+  even if only this pack is installed.
+- The `minecraft:default` override is the wave-6 A1 chain — the custom Vietnamese
+  text font (`vi_text`) was dropped from BOTH packs; this pack adds only
+  `nomnom:hud` before `minecraft:include/unifont`.
+- Install both packs together: send **NomNomUI FIRST, NomNomUI-HUD SECOND**
+  (`Player#addResourcePack`) — the HUD override already contains every provider
+  of the main chain, so nothing is lost.
+- Glyph table + number->PUA mapping recipe: `HUD-INFO.md` in this pack.
 
-## Ghi công (bắt buộc)
-- **Be Vietnam Pro** — SIL Open Font License 1.1, xem `LICENSE-OFL.txt`
-  (digits 'k' 'M' và phần cơ cấu font HUD phái sinh từ bản raster hoá).
-- Phần glyph/ornament tự thiết kế: © NomNom SMP 2026.
+## Attribution (required)
+- **Be Vietnam Pro** — SIL Open Font License 1.1, see `LICENSE-OFL.txt`
+  (the `k`/`M`/`T`/`ms` glyphs are raster derivatives of that typeface).
+- Glyph/ornament design: © NomNom SMP 2026.

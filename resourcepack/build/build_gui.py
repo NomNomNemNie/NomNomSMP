@@ -5,6 +5,11 @@ NomNom UI Kit -- GUI texture + item model generator (resource pack, 1.21.11).
 
 Deterministic, idempotent, pixel-art only (binary alpha, no anti-aliasing).
 
+NN6 A3 (wave 6): LIGHT THEME. Panels, slots, bg/border/card/title and the
+neutral (gray) buttons flip to paper white (PAPER_* tokens); gold stays the
+accent for primary buttons and rims; arrow/neutral glyphs (btn_gray_back/close/
+prev/next) render BLACK on the light face (owner: "nen trang, mui ten den").
+
 Usage (run from anywhere):
     python work/rp_build/build_gui.py            # generate textures + JSON
     python work/rp_build/build_gui.py --check    # verify on-disk == regenerated
@@ -18,7 +23,8 @@ Outputs:
     work/rp_src/assets/nomnom/items/ui/**                 (item_model definitions)
     work/rp_build/gui_manifest.json                       (build manifest + hashes)
 
-Design source: work/nn4-design.md sections 1.3-1.6, 4.6; decisions D10-D12/D16.
+Design source: work/nn4-design.md sections 1.3-1.6, 4.6; decisions D10-D12/D16;
+wave-6 A3 light-theme repaint (nn6-decisions-rp.md).
 """
 
 from __future__ import annotations
@@ -39,7 +45,7 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 WORK = HERE.parent
-RP = HERE.parent if (HERE.parent / "assets").is_dir() else WORK / "rp_src"  # repo: resourcepack/, workspace: work/rp_src
+RP = WORK / "rp_src"
 ASSETS = RP / "assets" / "nomnom"
 TEX = ASSETS / "textures"
 MODELS = ASSETS / "models" / "item" / "ui"
@@ -47,7 +53,8 @@ ITEMS = ASSETS / "items" / "ui"
 MANIFEST = HERE / "gui_manifest.json"
 
 # ---------------------------------------------------------------------------
-# Palette (work/nn4-design.md 1.1 + 1.5; no colours outside this table)
+# Palette (work/nn4-design.md 1.1 + 1.5; NN6 A3 adds the PAPER light tokens;
+# no colours outside this table)
 # ---------------------------------------------------------------------------
 
 INK_950 = (0x07, 0x0A, 0x0E, 255)
@@ -76,6 +83,15 @@ TEXT_700 = (0x5F, 0x6B, 0x7D, 255)
 SILVER_200 = (0xCE, 0xD3, 0xDA, 255)
 TRANSPARENT = (0, 0, 0, 0)
 
+# NN6 A3 light theme (owner: "nền trắng cho gọn, mũi tên đen"): the GUI panels,
+# slots and neutral buttons flip to a clean paper white; gold stays the accent
+# for primary buttons/borders; arrow/neutral glyphs go black (INK_950).
+WHITE = (0xFF, 0xFF, 0xFF, 255)
+PAPER_50 = (0xF7, 0xF8, 0xFA, 255)     # main light fill (panels, slots, bg)
+PAPER_100 = (0xEE, 0xF1, 0xF5, 255)    # light inset fill / neutral button face
+PAPER_200 = (0xD9, 0xDE, 0xE6, 255)    # light border / dark bevel on light
+PAPER_300 = (0xB8, 0xC0, 0xCC, 255)    # strongest light border (neutral outline)
+
 # Button hover faces are the +12 L values given in design 1.4.
 GREEN_HOVER = (0xA4, 0xE4, 0x89, 255)
 GREEN_HOVER_LIGHT = (0xD7, 0xF3, 0xCB, 255)
@@ -83,9 +99,9 @@ GREEN_HOVER_DARK = (0x71, 0xD5, 0x47, 255)
 GOLD_HOVER = (0xEF, 0xCB, 0x86, 255)
 GOLD_HOVER_LIGHT = (0xF9, 0xEA, 0xCE, 255)
 GOLD_HOVER_DARK = (0xE5, 0xAC, 0x3E, 255)
-GRAY_HOVER = (0x31, 0x41, 0x57, 255)
-GRAY_HOVER_LIGHT = (0x4E, 0x68, 0x8B, 255)
-GRAY_HOVER_DARK = (0x14, 0x1A, 0x23, 255)
+GRAY_HOVER = (0xD9, 0xDE, 0xE6, 255)        # NN6: light hover (PAPER_200)
+GRAY_HOVER_LIGHT = (0xEE, 0xF1, 0xF5, 255)  # NN6: light hover bevel (PAPER_100)
+GRAY_HOVER_DARK = (0xB8, 0xC0, 0xCC, 255)   # NN6: light hover bevel (PAPER_300)
 
 
 # ---------------------------------------------------------------------------
@@ -303,28 +319,31 @@ def make_panel(w, h, radius, outer, outer_w, inner, fill,
 
 
 def tex_panel_primary() -> Canvas:
-    return make_panel(48, 48, 4, GOLD_400, 2, INK_900, INK_800, INK_700, INK_900)
+    """NN6 A3 light theme: gold rim kept, paper-white body."""
+    return make_panel(48, 48, 4, GOLD_400, 2, GOLD_200, PAPER_50, WHITE, PAPER_200)
 
 
 def tex_panel_inset() -> Canvas:
-    return make_panel(48, 48, 4, INK_600, 1, INK_900, INK_900, INK_900, INK_700, 2)
+    """NN6 A3 light theme: recessed light-gray inset."""
+    return make_panel(48, 48, 4, PAPER_300, 1, PAPER_200, PAPER_100, WHITE, PAPER_200, 2)
 
 
 def tex_panel_raised() -> Canvas:
-    return make_panel(48, 48, 4, GOLD_400, 2, INK_900, INK_700, INK_600, INK_900)
+    """NN6 A3 light theme: gold rim + raised paper body."""
+    return make_panel(48, 48, 4, GOLD_400, 2, GOLD_200, PAPER_50, WHITE, PAPER_200)
 
 
 def tex_titlebar() -> Canvas:
-    c = make_panel(48, 20, 4, GOLD_400, 2, INK_900, INK_700, INK_600, INK_900, 2)
-    # gold-200 underline sits inside the fill, above the dark bottom bevel
-    c.hline(3, 13, 42, GOLD_200)
+    c = make_panel(48, 20, 4, GOLD_400, 2, GOLD_200, PAPER_50, WHITE, PAPER_200, 2)
+    # gold underline sits inside the fill, above the light bottom bevel
+    c.hline(3, 13, 42, GOLD_400)
     return c
 
 
 def tex_divider() -> Canvas:
     c = Canvas(16, 4)
     c.hline(0, 1, 16, GOLD_400)
-    c.hline(0, 2, 16, INK_900)
+    c.hline(0, 2, 16, PAPER_300)
     return c
 
 
@@ -333,39 +352,43 @@ def tex_divider() -> Canvas:
 # ---------------------------------------------------------------------------
 
 def tex_slot_inset() -> Canvas:
-    """Plain slot background tile: ui/bg (square so a grid tiles seamlessly)."""
+    """Plain slot background tile: ui/bg (square so a grid tiles seamlessly).
+
+    NN6 A3 light theme: paper-white slot, subtle inset bevel (top/left light,
+    bottom/right light-gray) so slots still read as recesses on the white GUI.
+    """
     c = Canvas(16, 16)
-    c.rect(0, 0, 16, 16, INK_800)
-    c.frame(0, 0, 16, 16, INK_600)
-    c.hline(1, 1, 14, INK_900)
-    c.vline(1, 1, 14, INK_900)
-    c.hline(1, 14, 14, INK_700)
-    c.vline(14, 1, 14, INK_700)
+    c.rect(0, 0, 16, 16, PAPER_50)
+    c.frame(0, 0, 16, 16, PAPER_300)
+    c.hline(1, 1, 14, WHITE)
+    c.vline(1, 1, 14, WHITE)
+    c.hline(1, 14, 14, PAPER_200)
+    c.vline(14, 1, 14, PAPER_200)
     return c
 
 
 def tex_slot_border() -> Canvas:
-    """Slot frame tile: ui/border (square; gold 1 px + ink 1 px)."""
+    """Slot frame tile: ui/border (square; gold ring kept, light interior)."""
     c = Canvas(16, 16)
     c.rect(0, 0, 16, 16, GOLD_400)
-    c.frame(1, 1, 14, 14, INK_900)
-    c.rect(2, 2, 12, 12, INK_800)
-    c.hline(2, 2, 12, INK_900)
-    c.vline(2, 2, 12, INK_900)
-    c.hline(2, 13, 12, INK_700)
-    c.vline(13, 2, 12, INK_700)
+    c.frame(1, 1, 14, 14, GOLD_600)
+    c.rect(2, 2, 12, 12, PAPER_50)
+    c.hline(2, 2, 12, WHITE)
+    c.vline(2, 2, 12, WHITE)
+    c.hline(2, 13, 12, PAPER_200)
+    c.vline(13, 2, 12, PAPER_200)
     return c
 
 
 def tex_card() -> Canvas:
-    """Raised card frame tile: ui/card."""
-    return make_panel(16, 16, 2, GOLD_400, 1, INK_900, INK_700, INK_600, INK_900, 1)
+    """Raised card frame tile: ui/card (gold rim + paper body)."""
+    return make_panel(16, 16, 2, GOLD_400, 1, GOLD_200, PAPER_50, WHITE, PAPER_200, 1)
 
 
 def tex_title() -> Canvas:
-    """Single-slot titlebar tile: ui/title."""
-    c = make_panel(16, 16, 2, GOLD_400, 1, INK_900, INK_700, INK_600, INK_900, 1)
-    c.hline(3, 12, 10, GOLD_200)
+    """Single-slot titlebar tile: ui/title (gold rim + paper body + gold rule)."""
+    c = make_panel(16, 16, 2, GOLD_400, 1, GOLD_200, PAPER_50, WHITE, PAPER_200, 1)
+    c.hline(3, 12, 10, GOLD_400)
     return c
 
 
@@ -378,16 +401,18 @@ BUTTON_SPEC = {
     ("green", "hover"): dict(face=GREEN_HOVER, light=GREEN_HOVER_LIGHT, dark=GREEN_HOVER_DARK, outline=GOLD_200),
     ("gold", "normal"): dict(face=GOLD_400, light=GOLD_200, dark=GOLD_600, outline=INK_900),
     ("gold", "hover"): dict(face=GOLD_HOVER, light=GOLD_HOVER_LIGHT, dark=GOLD_HOVER_DARK, outline=GOLD_200),
-    ("gray", "normal"): dict(face=INK_700, light=INK_600, dark=INK_950, outline=INK_900),
-    ("gray", "hover"): dict(face=GRAY_HOVER, light=GRAY_HOVER_LIGHT, dark=GRAY_HOVER_DARK, outline=TEXT_100),
+    # NN6 A3: neutral buttons flip to paper; glyphs (arrows back/prev/next/close)
+    # render BLACK on the light face (owner request "mũi tên đen")
+    ("gray", "normal"): dict(face=PAPER_100, light=WHITE, dark=PAPER_200, outline=PAPER_300),
+    ("gray", "hover"): dict(face=GRAY_HOVER, light=GRAY_HOVER_LIGHT, dark=GRAY_HOVER_DARK, outline=PAPER_300),
 }
 
 
 def make_button(kind: str, state: str, glyph: str | None = None, icon_color=None) -> Canvas:
     c = Canvas(16, 16)
     if state == "disabled":
-        c.rect(0, 0, 16, 16, INK_600)
-        c.rect(1, 1, 14, 14, INK_800)
+        c.rect(0, 0, 16, 16, PAPER_200)
+        c.rect(1, 1, 14, 14, PAPER_100)
         # flat: no bevel, no icon (binary alpha preserved)
         return c
 
@@ -401,7 +426,9 @@ def make_button(kind: str, state: str, glyph: str | None = None, icon_color=None
 
     if glyph:
         if icon_color is None:
-            icon_color = TEXT_100 if kind == "gray" else INK_900
+            # NN6 A3: neutral (gray) glyphs go black on the light face; primary
+            # buttons keep the dark ink on their gold/green faces
+            icon_color = INK_950 if kind == "gray" else INK_900
         draw_glyph_9(c, glyph, 3, 3, icon_color, spec["face"])
     return c
 
@@ -1343,7 +1370,7 @@ def slice9(img: Image.Image, W: int, H: int, bx: int, by: int | None = None) -> 
 
 
 def write_previews():
-    bg = (0x0B, 0x0F, 0x14, 255)
+    bg = (0xE9, 0xEC, 0xF1, 255)  # NN6 A3: light sheet — previews must show the theme honestly
     panels = [tex_panel_primary(), tex_panel_inset(), tex_panel_raised(),
               tex_titlebar(), tex_divider()]
     sheet = compose(bg, [(p, "") for p in panels], 3, 4, 12)
